@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>财富密码生成器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    background: #0b0b0b;
+    color: #f4f3f1;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    padding: 24px;
+    text-align: center;
+  }
+  h1 { font-size: clamp(28px, 6vw, 48px); letter-spacing: -0.03em; }
+  .sub { color: #f4f3f199; max-width: 32em; line-height: 1.6; }
+  button {
+    font-size: 18px;
+    padding: 14px 32px;
+    border: none;
+    border-radius: 9px;
+    background: #c7ff3d;
+    color: #0b0b0b;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: #fff; }
+  #fortune {
+    min-height: 3em;
+    font-size: 20px;
+    color: #c7ff3d;
+    max-width: 28em;
+    line-height: 1.6;
+  }
+  .qr { margin-top: 16px; opacity: 0.8; }
+  .qr img { width: 96px; height: 96px; border-radius: 9px; }
+  .qr p { font-size: 12px; color: #f4f3f14d; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>财富密码生成器</h1>
+  <p class="sub">找到了这里，你就找到了财富的密码。点击下方按钮，立刻发财。</p>
+  <button id="mint">点我发财</button>
+  <p id="fortune">（财富尚未生成）</p>
+  <div class="qr">
+    <img src="qr.png" alt="扫码即玩">
+    <p>扫码，把财富分享给朋友</p>
+  </div>
+<script>
+  const fortunes = [
+    "恭喜你！你的财富正在另一个平行宇宙稳定增长。",
+    "根据测算，你离财富自由只差 10 的 38 次方 元。",
+    "今日宜：做梦。今日忌：醒。",
+    "财富密码已生成：123456。已被 800 万人使用。",
+    "投资大师说过：你不理财，财不离你。",
+    "你的财运被蘑菇吃了。建议再来一次。",
+    "警报：检测到你是潜力股，可惜一直没有上市。",
+    "发财进度：0.0000001%。请继续保持。"
+  ];
+  document.getElementById("mint").addEventListener("click", () => {
+    const el = document.getElementById("fortune");
+    el.textContent = fortunes[Math.floor(Math.random() * fortunes.length)];
+  });
+</script>
+</body>
+</html>
