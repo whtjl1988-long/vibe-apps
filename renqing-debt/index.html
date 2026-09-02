@@ -110,7 +110,8 @@
     padding: 11px 16px; outline: none; height: 44px; appearance: none;
   }
   select { padding-right: 34px; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%237a7a7a' d='M0 0h10L5 6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; }
-  input:focus, select:focus { border-color: var(--primary-focus); box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15); }
+  /* 设计系统：聚焦态用 outline，不用阴影——全系统零阴影 */
+  input:focus, select:focus { border-color: var(--primary-focus); outline: 2px solid var(--primary-focus); outline-offset: -1px; }
   input[type="date"] { padding: 11px 12px; }
   .capital { min-height: 20px; font-size: 14px; letter-spacing: -0.224px; color: var(--primary); margin-top: 17px; }
 
