@@ -166,6 +166,18 @@
   .modal .warn { color: var(--seal); }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 
+  /* 分享（规则 10 模板约定：零依赖，样式随软件） */
+  #share-btn {
+    position: fixed; top: 14px; right: 14px; z-index: 40;
+    font-size: 12px; padding: 6px 14px; letter-spacing: 0.14em;
+    background: var(--paper-2); color: var(--ink-2); border: 1px solid var(--ink);
+    font-family: ui-monospace, monospace;
+  }
+  #share-btn:hover { background: var(--seal); color: var(--paper-2); border-color: var(--seal); }
+  #share-overlay .modal { text-align: center; max-width: 320px; }
+  #share-overlay img { width: 200px; height: 200px; background: var(--paper-2); border: 1px solid var(--rule); padding: 6px; }
+  #share-overlay p { font-size: 12px; margin: 10px 0 0; }
+
   footer {
     margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule);
     font-size: 12px; color: var(--ink-3); line-height: 1.9;
@@ -185,6 +197,7 @@
 </style>
 </head>
 <body>
+<button id="share-btn" type="button">分 享</button>
 <div class="wrap">
 
   <header>
@@ -320,6 +333,16 @@
     复用其金额大写算法、重名检测与导出逻辑；人情往来模型与荒诞层为本项目新写。<br>
     「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品。数据只在你自己的浏览器里，不上传任何服务器。
   </footer>
+</div>
+
+<div class="overlay" id="share-overlay">
+  <div class="modal">
+    <img src="qr.png" alt="扫码打开人情债管理系统">
+    <p id="share-tip">链接已复制，扫码继续记账</p>
+    <div class="modal-actions" style="justify-content:center">
+      <button class="ghost" id="share-close">关闭</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="confirm-overlay">
@@ -1008,7 +1031,40 @@ const UI = {
   },
 };
 
-document.addEventListener("DOMContentLoaded", () => UI.init());
+/* ---------- Share：零依赖分享（规则 10 模板约定） ---------- */
+const Share = {
+  init() {
+    const btn = document.getElementById("share-btn");
+    const overlay = document.getElementById("share-overlay");
+    const tip = document.getElementById("share-tip");
+    document.getElementById("share-close").addEventListener("click", () => overlay.classList.remove("open"));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.remove("open");
+    });
+    btn.addEventListener("click", async () => {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: document.title, url: location.href });
+          return;
+        } catch (e) {
+          if (e && e.name === "AbortError") return; // 用户取消不算 fallback 场景
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(location.href);
+        tip.textContent = "链接已复制，扫码继续记账";
+      } catch (e) {
+        tip.textContent = "扫码继续记账";
+      }
+      overlay.classList.add("open");
+    });
+  },
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  UI.init();
+  Share.init();
+});
 </script>
 </body>
 </html>
