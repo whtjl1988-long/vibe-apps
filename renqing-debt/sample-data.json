@@ -1,0 +1,320 @@
+{
+  "version": 2,
+  "exportedAt": "2026-09-02 10:00",
+  "tags": {
+    "relation": [
+      "邻居"
+    ],
+    "method": [
+      "支付宝"
+    ]
+  },
+  "events": [
+    {
+      "id": "e-default",
+      "name": "日常往来",
+      "date": ""
+    },
+    {
+      "id": "e-my-wedding",
+      "name": "我结婚",
+      "date": "2021-10-03"
+    },
+    {
+      "id": "e-my-baby",
+      "name": "我家孩子满月",
+      "date": "2024-05-18"
+    },
+    {
+      "id": "e-eryi",
+      "name": "二舅家娶媳妇",
+      "date": "2026-08-20"
+    },
+    {
+      "id": "e-laoli",
+      "name": "老李乔迁",
+      "date": "2026-03-12"
+    },
+    {
+      "id": "e-lingdao",
+      "name": "领导女儿升学宴",
+      "date": "2025-09-06"
+    },
+    {
+      "id": "e-aqiang",
+      "name": "阿强二胎满月",
+      "date": "2023-05-21"
+    },
+    {
+      "id": "e-wang",
+      "name": "王小雅结婚",
+      "date": "2018-12-08"
+    },
+    {
+      "id": "e-biaoge",
+      "name": "远房表哥结婚",
+      "date": "2019-06-16"
+    },
+    {
+      "id": "e-zhoushu",
+      "name": "周姨家老爷子过寿",
+      "date": "2022-11-11"
+    }
+  ],
+  "records": [
+    {
+      "id": "s20",
+      "dir": "out",
+      "eventId": "e-eryi",
+      "name": "二舅",
+      "amount": 2000,
+      "note": "亲戚 · 记重了",
+      "date": "2026-08-20",
+      "void": true,
+      "createdAt": "2026-08-20 10:00",
+      "history": [
+        {
+          "field": "void",
+          "from": false,
+          "to": true,
+          "at": "2026-08-20 11:30"
+        }
+      ]
+    },
+    {
+      "id": "s19",
+      "dir": "out",
+      "eventId": "e-default",
+      "name": "小舅妈",
+      "amount": 600,
+      "note": "亲戚 · 代送的",
+      "date": "2026-01-09",
+      "void": false,
+      "createdAt": "2026-01-09 10:00",
+      "history": []
+    },
+    {
+      "id": "s18",
+      "dir": "out",
+      "eventId": "e-default",
+      "name": "小马",
+      "amount": 300,
+      "note": "朋友 · 微信转的 · 他生日",
+      "date": "2025-02-14",
+      "void": false,
+      "createdAt": "2025-02-14 10:00",
+      "history": []
+    },
+    {
+      "id": "s17",
+      "dir": "out",
+      "eventId": "e-zhoushu",
+      "name": "周姨",
+      "amount": 400,
+      "note": "邻居 · 现金",
+      "date": "2022-11-11",
+      "void": false,
+      "createdAt": "2022-11-11 10:00",
+      "history": []
+    },
+    {
+      "id": "s16",
+      "dir": "out",
+      "eventId": "e-biaoge",
+      "name": "远房表哥",
+      "amount": 800,
+      "note": "亲戚 · 只见过这一面",
+      "date": "2019-06-16",
+      "void": false,
+      "createdAt": "2019-06-16 10:00",
+      "history": []
+    },
+    {
+      "id": "s15",
+      "dir": "out",
+      "eventId": "e-wang",
+      "name": "王小雅",
+      "amount": 500,
+      "note": "同学 · 此后再无音讯",
+      "date": "2018-12-08",
+      "void": false,
+      "createdAt": "2018-12-08 10:00",
+      "history": []
+    },
+    {
+      "id": "s14",
+      "dir": "out",
+      "eventId": "e-aqiang",
+      "name": "阿强",
+      "amount": 1000,
+      "note": "发小 · 微信转的",
+      "date": "2023-05-21",
+      "void": false,
+      "createdAt": "2023-05-21 10:00",
+      "history": []
+    },
+    {
+      "id": "s13",
+      "dir": "out",
+      "eventId": "e-lingdao",
+      "name": "领导",
+      "amount": 800,
+      "note": "领导 · 现金",
+      "date": "2025-09-06",
+      "void": false,
+      "createdAt": "2025-09-06 10:00",
+      "history": []
+    },
+    {
+      "id": "s12",
+      "dir": "out",
+      "eventId": "e-laoli",
+      "name": "老李",
+      "amount": 600,
+      "note": "同事 · 微信转的",
+      "date": "2026-03-12",
+      "void": false,
+      "createdAt": "2026-03-12 10:00",
+      "history": []
+    },
+    {
+      "id": "s11",
+      "dir": "out",
+      "eventId": "e-eryi",
+      "name": "二舅",
+      "amount": 2000,
+      "note": "亲戚 · 现金 · 随了大份",
+      "date": "2026-08-20",
+      "void": false,
+      "createdAt": "2026-08-20 10:00",
+      "history": []
+    },
+    {
+      "id": "s10",
+      "dir": "in",
+      "eventId": "e-my-baby",
+      "name": "小马",
+      "amount": 200,
+      "note": "朋友 · 礼品折价",
+      "date": "2024-05-18",
+      "void": false,
+      "createdAt": "2024-05-18 10:00",
+      "history": []
+    },
+    {
+      "id": "s09",
+      "dir": "in",
+      "eventId": "e-my-baby",
+      "name": "老李",
+      "amount": 500,
+      "note": "同事 · 微信转的",
+      "date": "2024-05-18",
+      "void": false,
+      "createdAt": "2024-05-18 10:00",
+      "history": []
+    },
+    {
+      "id": "s08",
+      "dir": "in",
+      "eventId": "e-my-baby",
+      "name": "小舅妈",
+      "amount": 1000,
+      "note": "亲戚 · 现金",
+      "date": "2024-05-18",
+      "void": false,
+      "createdAt": "2024-05-18 10:00",
+      "history": [
+        {
+          "field": "amount",
+          "from": 800,
+          "to": 1000,
+          "at": "2024-05-18 11:20"
+        }
+      ]
+    },
+    {
+      "id": "s07",
+      "dir": "in",
+      "eventId": "e-my-baby",
+      "name": "阿强",
+      "amount": 800,
+      "note": "发小 · 微信转的",
+      "date": "2024-05-18",
+      "void": false,
+      "createdAt": "2024-05-18 10:00",
+      "history": []
+    },
+    {
+      "id": "s06",
+      "dir": "in",
+      "eventId": "e-my-wedding",
+      "name": "周姨",
+      "amount": 600,
+      "note": "邻居 · 现金",
+      "date": "2021-10-03",
+      "void": false,
+      "createdAt": "2021-10-03 10:00",
+      "history": []
+    },
+    {
+      "id": "s05",
+      "dir": "in",
+      "eventId": "e-my-wedding",
+      "name": "王小雅",
+      "amount": 200,
+      "note": "同学 · 她妈代送的",
+      "date": "2021-10-03",
+      "void": false,
+      "createdAt": "2021-10-03 10:00",
+      "history": []
+    },
+    {
+      "id": "s04",
+      "dir": "in",
+      "eventId": "e-my-wedding",
+      "name": "老李",
+      "amount": 300,
+      "note": "同事 · 当时还没离职",
+      "date": "2021-10-03",
+      "void": false,
+      "createdAt": "2021-10-03 10:00",
+      "history": []
+    },
+    {
+      "id": "s03",
+      "dir": "in",
+      "eventId": "e-my-wedding",
+      "name": "领导",
+      "amount": 500,
+      "note": "领导 · 不好不还",
+      "date": "2021-10-03",
+      "void": false,
+      "createdAt": "2021-10-03 10:00",
+      "history": []
+    },
+    {
+      "id": "s02",
+      "dir": "in",
+      "eventId": "e-my-wedding",
+      "name": "阿强",
+      "amount": 1000,
+      "note": "发小 · 随得最实在",
+      "date": "2021-10-03",
+      "void": false,
+      "createdAt": "2021-10-03 10:00",
+      "history": []
+    },
+    {
+      "id": "s01",
+      "dir": "in",
+      "eventId": "e-my-wedding",
+      "name": "二舅",
+      "amount": 200,
+      "note": "亲戚 · 现金",
+      "date": "2021-10-03",
+      "void": false,
+      "createdAt": "2021-10-03 10:00",
+      "history": []
+    }
+  ]
+}
