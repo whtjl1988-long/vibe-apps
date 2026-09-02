@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人情债管理系统</title>
+<meta property="og:title" content="人情债管理系统">
+<meta property="og:description" content="一本正经地给人情往来记账。扫码即玩。">
+<meta property="og:image" content="https://vibe-all.com/og-card-square.webp">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<script src="./static/xlsx.full.min.js"></script>
+<style>
+  /* 人情债管理系统 —— 视觉走「一本正经的账房」路子：宣纸底、墨字、朱砂点缀。
+     刻意不套 vibe-all.com 的站点视觉（ADR-0005：软件各有各的怪样）。 */
+  :root {
+    --paper: #f7f4ec;
+    --paper-2: #fffdf7;
+    --ink: #1d1a16;
+    --ink-2: #4a453c;
+    --ink-3: #8a8275;
+    --rule: #d9d2c2;
+    --rule-soft: #e8e2d4;
+    --seal: #b7332b;
+    --seal-soft: #b7332b18;
+    --in: #1f6b4a;
+    --out: #a8532a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Songti SC", "STSong", "SimSun", ui-serif, serif;
+    line-height: 1.6;
+    padding: 0 0 64px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 28px 0 16px;
+    margin-bottom: 24px;
+  }
+  header .title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 30px; letter-spacing: 0.12em; font-weight: 700; }
+  .stamp {
+    border: 1.5px solid var(--seal); color: var(--seal);
+    font-size: 11px; letter-spacing: 0.18em;
+    padding: 2px 8px; border-radius: 2px;
+    font-family: ui-monospace, monospace;
+  }
+  header p { color: var(--ink-3); font-size: 13px; margin-top: 6px; letter-spacing: 0.04em; }
+
+  section { margin-bottom: 28px; }
+  h2 {
+    font-size: 13px; letter-spacing: 0.22em; color: var(--ink-3);
+    font-weight: 400; margin-bottom: 10px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* 录入区 */
+  .entry {
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    padding: 18px;
+  }
+  .fields { display: grid; grid-template-columns: 1.2fr 1fr 1.4fr 1fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  label { font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
+  input[type="text"], input[type="number"], input[type="date"] {
+    font-family: inherit; font-size: 15px; color: var(--ink);
+    background: transparent;
+    border: none; border-bottom: 1px solid var(--rule);
+    padding: 6px 2px; outline: none;
+  }
+  input:focus { border-bottom-color: var(--seal); }
+  .capital {
+    min-height: 20px; font-size: 12px; color: var(--seal);
+    font-family: inherit; letter-spacing: 0.06em; margin-top: 8px;
+  }
+  .entry-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14px; cursor: pointer;
+    padding: 8px 18px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper-2);
+    letter-spacing: 0.08em;
+  }
+  button:hover { background: var(--seal); border-color: var(--seal); }
+  button.ghost { background: transparent; color: var(--ink-2); border-color: var(--rule); }
+  button.ghost:hover { background: transparent; color: var(--seal); border-color: var(--seal); }
+  button.mini { font-size: 12px; padding: 3px 10px; }
+
+  /* 统计条 */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--rule); background: var(--paper-2); }
+  .stat { padding: 14px 16px; border-right: 1px solid var(--rule-soft); }
+  .stat:last-child { border-right: none; }
+  .stat .k { font-size: 11px; color: var(--ink-3); letter-spacing: 0.14em; }
+  .stat .v { font-size: 22px; font-family: ui-monospace, monospace; margin-top: 4px; }
+
+  /* 账本 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th {
+    text-align: left; font-weight: 400; font-size: 11px; letter-spacing: 0.16em;
+    color: var(--ink-3); border-bottom: 1px solid var(--ink); padding: 8px 6px;
+    font-family: ui-monospace, monospace;
+  }
+  tbody td { padding: 10px 6px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  tbody tr.void td { color: var(--ink-3); text-decoration: line-through; }
+  td.amount { font-family: ui-monospace, monospace; text-align: right; white-space: nowrap; }
+  .tag { font-size: 11px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 2px; letter-spacing: 0.08em; }
+  .note { color: var(--ink-3); font-size: 12px; }
+  .trace { color: var(--seal); font-size: 11px; font-family: ui-monospace, monospace; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .empty { padding: 40px 0; text-align: center; color: var(--ink-3); font-size: 14px; }
+
+  /* 工具条 */
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .mode-note {
+    font-size: 12px; color: var(--ink-3); font-family: ui-monospace, monospace;
+    border: 1px dashed var(--rule); padding: 4px 10px;
+  }
+
+  /* 弹层 */
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(29,26,22,0.55); align-items: center; justify-content: center; padding: 20px;
+  }
+  .overlay.open { display: flex; }
+  .modal { background: var(--paper-2); border: 1px solid var(--ink); padding: 22px; max-width: 440px; width: 100%; }
+  .modal h3 { font-size: 17px; margin-bottom: 10px; letter-spacing: 0.06em; }
+  .modal p { font-size: 14px; color: var(--ink-2); margin-bottom: 8px; }
+  .modal .warn { color: var(--seal); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  footer {
+    margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--rule);
+    font-size: 12px; color: var(--ink-3); line-height: 1.9;
+  }
+  footer a { color: var(--ink-2); }
+
+  @media (max-width: 720px) {
+    .fields { grid-template-columns: 1fr 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .stat:nth-child(2) { border-right: none; }
+    .stat:nth-child(1), .stat:nth-child(2) { border-bottom: 1px solid var(--rule-soft); }
+    h1 { font-size: 24px; }
+    table { font-size: 13px; }
+    thead th:nth-child(4), tbody td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-row">
+      <h1>人情债管理系统</h1>
+      <span class="stamp">RENQING DEBT</span>
+    </div>
+    <p>一本正经地给人情往来记账。本系统不提供任何法律、财务或情感建议。</p>
+  </header>
+
+  <section>
+    <h2>录 入</h2>
+    <div class="entry">
+      <div class="fields">
+        <div class="field">
+          <label for="f-name">姓名</label>
+          <input type="text" id="f-name" autocomplete="off" placeholder="张三">
+        </div>
+        <div class="field">
+          <label for="f-amount">金额（元）</label>
+          <input type="number" id="f-amount" min="0" step="1" placeholder="1000">
+        </div>
+        <div class="field">
+          <label for="f-note">名目</label>
+          <input type="text" id="f-note" autocomplete="off" placeholder="结婚 / 满月 / 乔迁">
+        </div>
+        <div class="field">
+          <label for="f-date">日期</label>
+          <input type="date" id="f-date">
+        </div>
+      </div>
+      <div class="capital" id="capital"></div>
+      <div class="entry-actions">
+        <button id="btn-add">记 一 笔</button>
+        <button class="ghost" id="btn-speak">语音播报</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>总 账</h2>
+    <div class="stats">
+      <div class="stat"><div class="k">笔数</div><div class="v" id="s-count">0</div></div>
+      <div class="stat"><div class="k">合计金额</div><div class="v" id="s-sum">¥0</div></div>
+      <div class="stat"><div class="k">人数</div><div class="v" id="s-people">0</div></div>
+      <div class="stat"><div class="k">单笔均值</div><div class="v" id="s-avg">¥0</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>明 细</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:22%">姓名</th>
+          <th style="width:16%">金额</th>
+          <th style="width:26%">名目</th>
+          <th style="width:16%">日期</th>
+          <th style="width:20%"></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty">账本还是空的。人情债尚未产生，恭喜。</div>
+  </section>
+
+  <section>
+    <h2>存 档</h2>
+    <div class="toolbar">
+      <button class="ghost" id="btn-xlsx">导出 Excel</button>
+      <button class="ghost" id="btn-json">导出数据文件</button>
+      <button class="ghost" id="btn-import">导入数据文件</button>
+      <input type="file" id="file-json" accept="application/json,.json" hidden>
+      <span class="mode-note" id="mode-note"></span>
+    </div>
+  </section>
+
+  <footer>
+    本软件基于开源项目 <a href="https://github.com/jingguanzhang/gift-book" target="_blank" rel="noopener">jingguanzhang/gift-book</a>（电子礼簿系统，1284★）改造，
+    复用其金额大写算法、重名检测与导出逻辑；人情往来模型与荒诞层为本项目新写。<br>
+    「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品。数据只在你自己的浏览器里，不上传任何服务器。
+  </footer>
+</div>
+
+<div class="overlay" id="confirm-overlay">
+  <div class="modal">
+    <h3 id="confirm-title">确认记账</h3>
+    <div id="confirm-body"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="confirm-cancel">再想想</button>
+      <button id="confirm-ok">确认记上</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+ * 人情债管理系统
+ * 复用自 jingguanzhang/gift-book（CC-BY-SA-4.0，见页脚出处标注）的零件：
+ *   - Utils.amountToChinese  金额转中文大写算法（原样搬运）
+ *   - 重名 / 同名同额检测思路
+ *   - XLSX（SheetJS）导出写法
+ * 其余为本项目新写。
+ * ============================================================ */
+
+/* ---------- Utils ---------- */
+const Utils = {
+  // 原样搬自 gift-book：数字金额 → 中文大写
+  amountToChinese(n) {
+    if (typeof n !== "number" && typeof n !== "string") return "";
+    n = parseFloat(n);
+    if (isNaN(n) || n === null) return "";
+    if (n === 0) return "零元整";
+    let unit = "京亿万仟佰拾兆万仟佰拾亿仟佰拾万仟佰拾元角分";
+    let str = "";
+    let s = n.toString();
+    if (s.indexOf(".") > -1) s = (n * 100).toFixed(0);
+    else s += "00";
+    if (s.length > unit.length) return "金额过大";
+    unit = unit.substr(unit.length - s.length);
+    for (let i = 0; i < s.length; i++) {
+      str += "零壹贰叁肆伍陆柒捌玖".charAt(s.charAt(i)) + unit.charAt(i);
+    }
+    return str
+      .replace(/零(仟|佰|拾|角)/g, "零")
+      .replace(/(零)+/g, "零")
+      .replace(/零(兆|万|亿|元)/g, "$1")
+      .replace(/(兆|亿)万/g, "$1")
+      .replace(/(京|兆)亿/g, "$1")
+      .replace(/(京)兆/g, "$1")
+      .replace(/(亿)万/g, "$1")
+      .replace(/(京|兆|亿|仟|佰|拾)(万?)(.)/g, "$1$2$3")
+      .replace(/零元/g, "元")
+      .replace(/零分/g, "")
+      .replace(/零角/g, "零")
+      .replace(/元$/g, "元整")
+      .replace(/角$/g, "角整");
+  },
+  formatCurrency(amount) {
+    return new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", maximumFractionDigits: 0 }).format(amount || 0);
+  },
+  today() {
+    const d = new Date(), pad = (x) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  },
+  stamp() {
+    const d = new Date(), pad = (x) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+  uid() {
+    return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  },
+  esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  },
+};
+
+/* ---------- Store：持久化（自托管态） ---------- */
+const STORAGE_KEY = "renqing-debt/v1";
+const Store = {
+  read() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { records: [] };
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed.records) ? parsed : { records: [] };
+    } catch (e) {
+      return { records: [] };
+    }
+  },
+  write(state) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      /* 存储不可用（隐私模式等）时静默降级为内存态，不打断使用 */
+    }
+  },
+};
+
+/* ---------- Ledger：账本模型（软删除 + 修改留痕） ---------- */
+const Ledger = {
+  state: { records: [] },
+
+  load() {
+    this.state = Store.read();
+  },
+  save() {
+    Store.write(this.state);
+  },
+  all() {
+    return this.state.records;
+  },
+  live() {
+    return this.state.records.filter((r) => !r.void);
+  },
+  add({ name, amount, note, date }) {
+    const rec = {
+      id: Utils.uid(),
+      name: name.trim(),
+      amount: Number(amount),
+      note: (note || "").trim(),
+      date: date || Utils.today(),
+      void: false,
+      createdAt: Utils.stamp(),
+      history: [],
+    };
+    this.state.records.unshift(rec);
+    this.save();
+    return rec;
+  },
+  update(id, patch) {
+    const rec = this.state.records.find((r) => r.id === id);
+    if (!rec) return null;
+    const changes = [];
+    for (const k of ["name", "amount", "note", "date"]) {
+      if (patch[k] !== undefined && String(patch[k]) !== String(rec[k])) {
+        changes.push({ field: k, from: rec[k], to: patch[k], at: Utils.stamp() });
+        rec[k] = k === "amount" ? Number(patch[k]) : patch[k];
+      }
+    }
+    if (changes.length) {
+      rec.history.push(...changes);
+      this.save();
+    }
+    return rec;
+  },
+  toggleVoid(id) {
+    const rec = this.state.records.find((r) => r.id === id);
+    if (!rec) return null;
+    rec.void = !rec.void;
+    rec.history.push({ field: "void", from: !rec.void, to: rec.void, at: Utils.stamp() });
+    this.save();
+    return rec;
+  },
+  replaceAll(records) {
+    this.state.records = records;
+    this.save();
+  },
+  stats() {
+    const live = this.live();
+    const sum = live.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const people = new Set(live.map((r) => r.name)).size;
+    return {
+      count: live.length,
+      sum,
+      people,
+      avg: live.length ? Math.round(sum / live.length) : 0,
+    };
+  },
+};
+
+/* ---------- Checks：重名 / 同名同额检测（思路来自 gift-book） ---------- */
+const Checks = {
+  inspect(name, amount) {
+    const same = Ledger.live().filter((r) => r.name === name.trim());
+    return {
+      sameName: same.length > 0,
+      sameNameCount: same.length,
+      exact: same.some((r) => Number(r.amount) === Number(amount)),
+    };
+  },
+};
+
+/* ---------- Exporter ---------- */
+const Exporter = {
+  xlsx() {
+    const rows = Ledger.all().map((r) => ({
+      姓名: r.name,
+      金额: r.amount,
+      大写: Utils.amountToChinese(r.amount),
+      名目: r.note,
+      日期: r.date,
+      状态: r.void ? "已作废" : "有效",
+      改动次数: r.history.length,
+    }));
+    if (!rows.length) return alert("账本是空的，没什么可导出的。");
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "人情往来");
+    XLSX.writeFile(wb, `人情债-${Utils.today()}.xlsx`);
+  },
+  json() {
+    const blob = new Blob([JSON.stringify({ version: 1, exportedAt: Utils.stamp(), records: Ledger.all() }, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `人情债-${Utils.today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  async importFile(file) {
+    const text = await file.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      return alert("这个文件不是本系统导出的数据文件。");
+    }
+    if (!data || !Array.isArray(data.records)) return alert("数据文件里没有找到记录。");
+    Ledger.replaceAll(data.records);
+    UI.render();
+    alert(`已导入 ${data.records.length} 条记录。`);
+  },
+};
+
+/* ---------- Speech：语音播报 ---------- */
+const Speech = {
+  available() {
+    return typeof window !== "undefined" && "speechSynthesis" in window;
+  },
+  say(name, amount) {
+    if (!this.available()) return alert("这台设备不支持语音播报。");
+    const text = `${name} 贺礼 ${Utils.amountToChinese(amount)}`;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const zh = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith("zh"));
+    if (zh.length) u.voice = zh[0];
+    u.rate = 0.9;
+    speechSynthesis.speak(u);
+  },
+};
+
+/* ---------- UI ---------- */
+const UI = {
+  el(id) {
+    return document.getElementById(id);
+  },
+
+  init() {
+    Ledger.load();
+    this.el("f-date").value = Utils.today();
+    this.el("mode-note").textContent = "自托管态：数据存在这台设备的浏览器里";
+    this.bind();
+    this.render();
+  },
+
+  bind() {
+    this.el("f-amount").addEventListener("input", (e) => {
+      const v = e.target.value;
+      this.el("capital").textContent = v ? `大写：${Utils.amountToChinese(v)}` : "";
+    });
+    this.el("btn-add").addEventListener("click", () => this.tryAdd());
+    ["f-name", "f-amount", "f-note"].forEach((id) => {
+      this.el(id).addEventListener("keydown", (e) => {
+        if (e.key === "Enter") this.tryAdd();
+      });
+    });
+    this.el("btn-speak").addEventListener("click", () => {
+      const name = this.el("f-name").value.trim();
+      const amount = this.el("f-amount").value;
+      if (!name || !amount) return alert("先填姓名和金额，才好念出来。");
+      Speech.say(name, amount);
+    });
+    this.el("btn-xlsx").addEventListener("click", () => Exporter.xlsx());
+    this.el("btn-json").addEventListener("click", () => Exporter.json());
+    this.el("btn-import").addEventListener("click", () => this.el("file-json").click());
+    this.el("file-json").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) Exporter.importFile(f);
+      e.target.value = "";
+    });
+    this.el("confirm-cancel").addEventListener("click", () => this.closeConfirm());
+    this.el("rows").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (btn.dataset.act === "void") {
+        Ledger.toggleVoid(id);
+        this.render();
+      } else if (btn.dataset.act === "edit") {
+        this.editRecord(id);
+      }
+    });
+  },
+
+  tryAdd() {
+    const name = this.el("f-name").value.trim();
+    const amount = this.el("f-amount").value;
+    const note = this.el("f-note").value.trim();
+    const date = this.el("f-date").value || Utils.today();
+    if (!name) return alert("总得有个名字。");
+    if (!amount || Number(amount) <= 0) return alert("金额得是个正数。");
+
+    const check = Checks.inspect(name, amount);
+    if (check.sameName) {
+      this.openConfirm(name, amount, note, date, check);
+      return;
+    }
+    this.commit(name, amount, note, date);
+  },
+
+  openConfirm(name, amount, note, date, check) {
+    const body = this.el("confirm-body");
+    const lines = [
+      `<p><strong>${Utils.esc(name)}</strong> · ${Utils.formatCurrency(amount)}（${Utils.amountToChinese(amount)}）</p>`,
+      `<p class="warn">账本里已经有 ${check.sameNameCount} 笔「${Utils.esc(name)}」。</p>`,
+    ];
+    if (check.exact) lines.push('<p class="warn">而且金额一模一样——大概率是记重了。</p>');
+    body.innerHTML = lines.join("");
+    this.el("confirm-overlay").classList.add("open");
+    const ok = this.el("confirm-ok");
+    const handler = () => {
+      ok.removeEventListener("click", handler);
+      this.closeConfirm();
+      this.commit(name, amount, note, date);
+    };
+    ok.addEventListener("click", handler);
+  },
+
+  closeConfirm() {
+    this.el("confirm-overlay").classList.remove("open");
+  },
+
+  commit(name, amount, note, date) {
+    Ledger.add({ name, amount, note, date });
+    this.el("f-name").value = "";
+    this.el("f-amount").value = "";
+    this.el("f-note").value = "";
+    this.el("capital").textContent = "";
+    this.el("f-name").focus();
+    this.render();
+  },
+
+  editRecord(id) {
+    const rec = Ledger.all().find((r) => r.id === id);
+    if (!rec) return;
+    const name = prompt("姓名", rec.name);
+    if (name === null) return;
+    const amount = prompt("金额", rec.amount);
+    if (amount === null) return;
+    const note = prompt("名目", rec.note);
+    if (note === null) return;
+    Ledger.update(id, { name: name.trim(), amount, note: note.trim() });
+    this.render();
+  },
+
+  render() {
+    const s = Ledger.stats();
+    this.el("s-count").textContent = s.count;
+    this.el("s-sum").textContent = Utils.formatCurrency(s.sum);
+    this.el("s-people").textContent = s.people;
+    this.el("s-avg").textContent = Utils.formatCurrency(s.avg);
+
+    const records = Ledger.all();
+    this.el("empty").style.display = records.length ? "none" : "block";
+    this.el("rows").innerHTML = records
+      .map(
+        (r) => `
+      <tr class="${r.void ? "void" : ""}">
+        <td>${Utils.esc(r.name)}${r.history.length ? `<div class="trace">改过 ${r.history.length} 次</div>` : ""}</td>
+        <td class="amount">${Utils.formatCurrency(r.amount)}</td>
+        <td>${Utils.esc(r.note) || '<span class="note">—</span>'}</td>
+        <td class="note">${Utils.esc(r.date)}</td>
+        <td>
+          <div class="row-actions">
+            <button class="ghost mini" data-act="edit" data-id="${r.id}">改</button>
+            <button class="ghost mini" data-act="void" data-id="${r.id}">${r.void ? "恢复" : "作废"}</button>
+          </div>
+        </td>
+      </tr>`
+      )
+      .join("");
+  },
+};
+
+document.addEventListener("DOMContentLoaded", () => UI.init());
+</script>
+</body>
+</html>
