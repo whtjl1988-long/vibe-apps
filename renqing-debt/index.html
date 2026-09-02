@@ -97,6 +97,14 @@
     background: transparent; color: var(--ink-2); border: 1px solid var(--rule);
   }
   .chip:hover { background: var(--seal); color: var(--paper-2); border-color: var(--seal); }
+  .chip-wrap { display: inline-flex; align-items: stretch; }
+  .chip-wrap .chip { border-right: none; }
+  .chip-del {
+    font-family: inherit; font-size: 11px; line-height: 1; padding: 3px 6px;
+    background: transparent; color: var(--ink-3); border: 1px solid var(--rule); border-left: none;
+  }
+  .chip-del:hover { background: var(--ink-3); color: var(--paper-2); border-color: var(--ink-3); }
+  .chip-add { border-style: dashed; color: var(--ink-3); }
   .entry-hint { font-size: 11px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
   .entry-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   button {
@@ -250,19 +258,8 @@
         </div>
       </div>
       <div class="capital" id="capital"></div>
-      <div class="presets">
-        <span class="preset-label">关系</span>
-        <button type="button" class="chip" data-preset="亲戚">亲戚</button>
-        <button type="button" class="chip" data-preset="发小">发小</button>
-        <button type="button" class="chip" data-preset="同事">同事</button>
-        <button type="button" class="chip" data-preset="领导">领导</button>
-        <button type="button" class="chip" data-preset="同学">同学</button>
-        <span class="preset-label">情况</span>
-        <button type="button" class="chip" data-preset="现金">现金</button>
-        <button type="button" class="chip" data-preset="微信转的">微信转的</button>
-        <button type="button" class="chip" data-preset="代送的">代送的</button>
-        <button type="button" class="chip" data-preset="礼品折价">礼品折价</button>
-      </div>
+      <div class="presets" id="tags-relation"></div>
+      <div class="presets" id="tags-method"></div>
       <p class="entry-hint">事由（结婚 / 满月 / 乔迁）写在<strong>事项</strong>里，只写一次；备注不必再重复它。</p>
       <div class="entry-actions">
         <button id="btn-add">记 一 笔</button>
@@ -517,6 +514,7 @@ const Store = {
  * -------------------------------------------------------------- */
 const DEMO_DATA = {
   version: 2,
+  tags: { relation: ["邻居"], method: ["支付宝"] },
   events: [
     { id: "e-default", name: "日常往来", date: "" },
     { id: "e-my-wedding", name: "我结婚", date: "2021-10-03" },
@@ -547,12 +545,19 @@ const DEMO_DATA = {
 /* ---------- Ledger：账本模型（事项 + 方向 + 软删除 + 修改留痕） ---------- */
 const DEFAULT_EVENT = { id: "e-default", name: "日常往来", date: "" };
 
+// 备注预设标签：内置这些，用户可以自己加、自己删（自定义的才能删）
+const TAG_GROUPS = [
+  { key: "relation", label: "关系", builtin: ["亲戚", "发小", "朋友", "同事", "领导", "同学"] },
+  { key: "method", label: "方式", builtin: ["现金", "微信转的", "代送的", "礼品折价"] },
+];
+const defaultTags = () => ({ relation: [], method: [] }); // 只存自定义部分，内置的写死在上面
+
 const Ledger = {
-  state: { version: 2, events: [DEFAULT_EVENT], records: [] },
+  state: { version: 2, events: [DEFAULT_EVENT], records: [], tags: defaultTags() },
 
   load(seed) {
     const stored = Store.read();
-    const base = stored || seed || { version: 2, events: [DEFAULT_EVENT], records: [] };
+    const base = stored || seed || { version: 2, events: [DEFAULT_EVENT], records: [], tags: defaultTags() };
     this.state = this.migrate(base);
     if (!stored && seed) this.save();
   },
@@ -568,10 +573,36 @@ const Ledger = {
       ...r,
       id: r.id || Utils.uid(),
     }));
-    return { version: 2, events, records };
+    const t = state.tags && typeof state.tags === "object" ? state.tags : {};
+    const tags = {
+      relation: Array.isArray(t.relation) ? t.relation : [],
+      method: Array.isArray(t.method) ? t.method : [],
+    };
+    return { version: 2, events, records, tags };
   },
   save() {
     Store.write(this.state);
+  },
+
+  // 某一组的全部标签 = 内置 + 用户自定义
+  tags(groupKey) {
+    const group = TAG_GROUPS.find((g) => g.key === groupKey);
+    const custom = (this.state.tags && this.state.tags[groupKey]) || [];
+    return { builtin: group ? group.builtin : [], custom };
+  },
+  addTag(groupKey, word) {
+    const w = String(word || "").trim();
+    if (!w) return false;
+    const { builtin, custom } = this.tags(groupKey);
+    if (builtin.includes(w) || custom.includes(w)) return false; // 已存在
+    this.state.tags[groupKey] = [...custom, w];
+    this.save();
+    return true;
+  },
+  removeTag(groupKey, word) {
+    const custom = (this.state.tags && this.state.tags[groupKey]) || [];
+    this.state.tags[groupKey] = custom.filter((w) => w !== word);
+    this.save();
   },
 
   events() {
@@ -797,7 +828,7 @@ const Exporter = {
     XLSX.writeFile(wb, `人情债-${Utils.today()}.xlsx`);
   },
   json() {
-    const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all() };
+    const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -816,6 +847,8 @@ const Exporter = {
     }
     if (!data || !Array.isArray(data.records)) return alert("数据文件里没有找到记录。");
     Ledger.replaceAll(data);
+    UI.renderTags();
+    UI.renderEventOptions();
     UI.render();
     alert(`已导入 ${data.records.length} 条记录。`);
   },
@@ -863,6 +896,7 @@ const UI = {
       : "自托管态：数据存在这台设备的浏览器里";
     this.el("btn-reset").hidden = !IS_DEMO;
     this.bind();
+    this.renderTags();
     this.renderEventOptions();
     this.render();
   },
@@ -887,15 +921,26 @@ const UI = {
       if (!name || !amount) return alert("先填姓名和金额，才好念出来。");
       Speech.say(this.dir, name, amount);
     });
-    // 备注预设：点一下追加到备注里，用 · 分隔
-    document.querySelectorAll(".chip").forEach((chip) => {
-      chip.addEventListener("click", () => {
-        const input = this.el("f-note");
-        const val = input.value.trim();
-        const word = chip.dataset.preset;
-        if (val.split("·").map((x) => x.trim()).includes(word)) return;
-        input.value = val ? `${val} · ${word}` : word;
-        input.focus();
+    // 备注预设：点标签追加到备注（· 分隔）；＋ 自定义；× 删自定义
+    TAG_GROUPS.forEach((g) => {
+      this.el(`tags-${g.key}`).addEventListener("click", (e) => {
+        const add = e.target.closest("button[data-add]");
+        if (add) {
+          const word = prompt(`新增「${g.label}」标签`);
+          if (word === null) return;
+          if (!Ledger.addTag(g.key, word)) return alert("这个标签是空的或者已经有了。");
+          this.renderTags();
+          return;
+        }
+        const del = e.target.closest("button[data-del]");
+        if (del) {
+          Ledger.removeTag(g.key, del.dataset.del);
+          this.renderTags();
+          return;
+        }
+        const chip = e.target.closest("button[data-preset]");
+        if (!chip) return;
+        this.appendNote(chip.dataset.preset);
       });
     });
     this.el("f-filter").addEventListener("change", (e) => {
@@ -914,6 +959,7 @@ const UI = {
       Store.clear();
       Ledger.load(Utils.clone(DEMO_DATA));
       this.filter = "all";
+      this.renderTags();
       this.renderEventOptions();
       this.render();
     });
@@ -927,6 +973,28 @@ const UI = {
       } else if (btn.dataset.act === "edit") {
         this.editRecord(btn.dataset.id);
       }
+    });
+  },
+
+  appendNote(word) {
+    const input = this.el("f-note");
+    const val = input.value.trim();
+    if (val.split("·").map((x) => x.trim()).includes(word)) return; // 已经有了就不重复加
+    input.value = val ? `${val} · ${word}` : word;
+    input.focus();
+  },
+
+  renderTags() {
+    TAG_GROUPS.forEach((g) => {
+      const { builtin, custom } = Ledger.tags(g.key);
+      const chip = (w) => `<button type="button" class="chip" data-preset="${Utils.esc(w)}">${Utils.esc(w)}</button>`;
+      const customChip = (w) =>
+        `<span class="chip-wrap">${chip(w)}<button type="button" class="chip-del" data-del="${Utils.esc(w)}" title="删除这个标签">×</button></span>`;
+      this.el(`tags-${g.key}`).innerHTML =
+        `<span class="preset-label">${g.label}</span>` +
+        builtin.map(chip).join("") +
+        custom.map(customChip).join("") +
+        `<button type="button" class="chip chip-add" data-add="1" title="自定义一个${g.label}标签">＋</button>`;
     });
   },
 
