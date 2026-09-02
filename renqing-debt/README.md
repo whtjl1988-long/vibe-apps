@@ -50,8 +50,12 @@
 >
 > 设计系统只有一个强调色，所以「收到 / 送出」不靠两种颜色区分——**方向由标签文字和正负号承担**，颜色只做辅助（收到 Action Blue，送出近黑）。
 
+## 导出的 Excel
+
+也按 [`DESIGN.md`](./DESIGN.md) 排过版：Action Blue 表头、发丝线行分隔、收/送同色规则、金额 `¥#,##0` 右对齐、作废行删除线、表头自带筛选，两个工作表（人情往来 / 关系人汇总）。
+
 ## 出处
 
-本软件基于开源项目 [jingguanzhang/gift-book](https://github.com/jingguanzhang/gift-book)（电子礼簿系统，1284★）改造：复用其**金额转中文大写算法**、**重名与同名同额检测**思路、**XLSX 导出写法**；人情往来模型（方向 / 事项 / 关系人聚合）与荒诞层为本项目新写。
+本软件基于开源项目 [jingguanzhang/gift-book](https://github.com/jingguanzhang/gift-book)（电子礼簿系统，1284★）改造：复用其**金额转中文大写算法**、**重名与同名同额检测**思路、**XLSX 导出写法**（导出库换成 [`xlsx-js-style`](https://github.com/gitbrent/xlsx-js-style) Apache-2.0，因为社区版 SheetJS 写不了单元格样式）；人情往来模型（方向 / 事项 / 关系人聚合）与荒诞层为本项目新写。
 
 「不会编码，硬要编码」——[vibe everyting](https://vibe-all.com) 出品。

@@ -9,7 +9,7 @@
 <meta property="og:image" content="https://vibe-all.com/og-card-square.webp">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<script src="./static/xlsx.full.min.js"></script>
+<script src="./static/xlsx-js-style.js"></script>
 <style>
   /* 人情债管理系统 —— 视觉按 Apple 设计系统（DESIGN-apple.md）：
      照片级留白、单一 Action Blue 强调色、发丝线代替阴影、SF Pro 字阶。
@@ -939,33 +939,110 @@ const Checks = {
 
 /* ---------- Exporter ---------- */
 const DIR_LABEL = { in: "收到", out: "送出" };
+
+/* ---------- Exporter
+ * Excel 的版式按 DESIGN.md：Action Blue 表头、发丝线行分隔、收/送同色规则、
+ * 金额右对齐 ¥#,##0、作废行加删除线。SF Pro 在 Excel 里不存在，中文换 PingFang SC
+ * （SF Pro 的中文伴侣字体）。
+ * -------------------------------------------------------------- */
+const XS = {
+  FONT: "PingFang SC",
+  BLUE: "0066CC",
+  INK: "1D1D1F",
+  INK_80: "333333",
+  INK_48: "7A7A7A",
+  HAIRLINE: "E0E0E0",
+  WHITE: "FFFFFF",
+  MONEY: "¥#,##0",
+
+  header(text) {
+    return {
+      v: text,
+      t: "s",
+      s: {
+        font: { name: XS.FONT, sz: 11, bold: true, color: { rgb: XS.WHITE } },
+        fill: { fgColor: { rgb: XS.BLUE } },
+        alignment: { vertical: "center", horizontal: "left" },
+      },
+    };
+  },
+  cell(v, opts) {
+    const o = opts || {};
+    return {
+      v: v,
+      t: typeof v === "number" ? "n" : "s",
+      z: o.money ? XS.MONEY : undefined,
+      s: {
+        font: {
+          name: XS.FONT,
+          sz: 11,
+          color: { rgb: o.color || XS.INK },
+          strike: !!o.strike,
+        },
+        alignment: { vertical: "center", horizontal: o.right ? "right" : "left" },
+        border: { bottom: { style: "thin", color: { rgb: XS.HAIRLINE } } },
+        numFmt: o.money ? XS.MONEY : undefined,
+      },
+    };
+  },
+};
+
 const Exporter = {
+  // 明细工作表
+  sheetRecords() {
+    const head = ["方向", "姓名", "金额", "大写", "事项", "备注", "日期", "状态", "改动"];
+    const rows = Ledger.all().map((r) => {
+      const dead = r.void;
+      const color = dead ? XS.INK_48 : r.dir === "in" ? XS.BLUE : XS.INK_80;
+      const base = { strike: dead, color: dead ? XS.INK_48 : XS.INK };
+      return [
+        XS.cell(DIR_LABEL[r.dir], base),
+        XS.cell(r.name, base),
+        XS.cell(Number(r.amount) || 0, { money: true, right: true, color, strike: dead }),
+        XS.cell(Utils.amountToChinese(r.amount), { ...base, color: XS.INK_48 }),
+        XS.cell(Ledger.eventName(r.eventId), base),
+        XS.cell(r.note || "—", { ...base, color: dead ? XS.INK_48 : XS.INK_80 }),
+        XS.cell(r.date, { ...base, color: XS.INK_48 }),
+        XS.cell(dead ? "已作废" : "有效", { ...base, color: dead ? XS.INK_48 : XS.INK_80 }),
+        XS.cell(Utils.edits(r) || "—", { ...base, right: true, color: XS.INK_48 }),
+      ];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([head.map(XS.header), ...rows]);
+    ws["!cols"] = [{ wch: 7 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 26 }, { wch: 12 }, { wch: 9 }, { wch: 7 }];
+    ws["!rows"] = [{ hpt: 24 }, ...rows.map(() => ({ hpt: 20 }))];
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: head.length - 1 } }) };
+    return ws;
+  },
+
+  // 关系人汇总工作表
+  sheetPeople() {
+    const head = ["姓名", "收到", "送出", "净额", "笔数", "最近往来"];
+    const people = Ledger.people();
+    const rows = people.map((p) => [
+      XS.cell(p.name),
+      XS.cell(p.in, { money: true, right: true, color: XS.BLUE }),
+      XS.cell(p.out, { money: true, right: true, color: XS.INK_80 }),
+      XS.cell(p.net, { money: true, right: true, color: p.net >= 0 ? XS.BLUE : XS.INK_80 }),
+      XS.cell(p.count, { right: true, color: XS.INK_80 }),
+      XS.cell(p.last || "—", { color: XS.INK_48 }),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([head.map(XS.header), ...rows]);
+    ws["!cols"] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 14 }];
+    ws["!rows"] = [{ hpt: 24 }, ...rows.map(() => ({ hpt: 20 }))];
+    if (rows.length) {
+      ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: head.length - 1 } }) };
+    }
+    return ws;
+  },
+
   xlsx() {
-    const rows = Ledger.all().map((r) => ({
-      方向: DIR_LABEL[r.dir],
-      姓名: r.name,
-      金额: r.amount,
-      大写: Utils.amountToChinese(r.amount),
-      事项: Ledger.eventName(r.eventId),
-      备注: r.note,
-      日期: r.date,
-      状态: r.void ? "已作废" : "有效",
-      改动次数: r.history.length,
-    }));
-    if (!rows.length) return alert("账本是空的，没什么可导出的。");
+    if (!Ledger.all().length) return alert("账本是空的，没什么可导出的。");
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "人情往来");
-    const people = Ledger.people().map((p) => ({
-      姓名: p.name,
-      收到: p.in,
-      送出: p.out,
-      净额: p.net,
-      笔数: p.count,
-      最近往来: p.last,
-    }));
-    if (people.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(people), "关系人汇总");
+    XLSX.utils.book_append_sheet(wb, this.sheetRecords(), "人情往来");
+    XLSX.utils.book_append_sheet(wb, this.sheetPeople(), "关系人汇总");
     XLSX.writeFile(wb, `人情债-${Utils.today()}.xlsx`);
   },
+
   json() {
     const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -976,6 +1053,7 @@ const Exporter = {
     a.click();
     URL.revokeObjectURL(url);
   },
+
   async importFile(file) {
     const text = await file.text();
     let data;
