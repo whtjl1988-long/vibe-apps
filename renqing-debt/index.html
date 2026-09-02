@@ -89,6 +89,15 @@
     min-height: 20px; font-size: 12px; color: var(--seal);
     letter-spacing: 0.06em; margin-top: 8px;
   }
+  .presets { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .preset-label { font-size: 11px; color: var(--ink-3); letter-spacing: 0.12em; margin-right: 2px; }
+  .preset-label:not(:first-child) { margin-left: 10px; }
+  .chip {
+    font-family: inherit; font-size: 12px; padding: 3px 10px; letter-spacing: 0.04em;
+    background: transparent; color: var(--ink-2); border: 1px solid var(--rule);
+  }
+  .chip:hover { background: var(--seal); color: var(--paper-2); border-color: var(--seal); }
+  .entry-hint { font-size: 11px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
   .entry-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   button {
     font-family: inherit; font-size: 14px; cursor: pointer;
@@ -227,12 +236,13 @@
           <input type="number" id="f-amount" min="0" step="1" placeholder="1000">
         </div>
         <div class="field">
-          <label for="f-event">事项</label>
-          <select id="f-event"></select>
+          <label for="f-event">事项（谁办了什么事）</label>
+          <input type="text" id="f-event" list="event-list" autocomplete="off" placeholder="我结婚 / 二舅家娶媳妇">
+          <datalist id="event-list"></datalist>
         </div>
         <div class="field">
-          <label for="f-note">名目</label>
-          <input type="text" id="f-note" autocomplete="off" placeholder="结婚 / 满月 / 乔迁">
+          <label for="f-note">备注（这一笔的情况）</label>
+          <input type="text" id="f-note" autocomplete="off" placeholder="亲戚 · 微信转的">
         </div>
         <div class="field">
           <label for="f-date">日期</label>
@@ -240,10 +250,23 @@
         </div>
       </div>
       <div class="capital" id="capital"></div>
+      <div class="presets">
+        <span class="preset-label">关系</span>
+        <button type="button" class="chip" data-preset="亲戚">亲戚</button>
+        <button type="button" class="chip" data-preset="发小">发小</button>
+        <button type="button" class="chip" data-preset="同事">同事</button>
+        <button type="button" class="chip" data-preset="领导">领导</button>
+        <button type="button" class="chip" data-preset="同学">同学</button>
+        <span class="preset-label">情况</span>
+        <button type="button" class="chip" data-preset="现金">现金</button>
+        <button type="button" class="chip" data-preset="微信转的">微信转的</button>
+        <button type="button" class="chip" data-preset="代送的">代送的</button>
+        <button type="button" class="chip" data-preset="礼品折价">礼品折价</button>
+      </div>
+      <p class="entry-hint">事由（结婚 / 满月 / 乔迁）写在<strong>事项</strong>里，只写一次；备注不必再重复它。</p>
       <div class="entry-actions">
         <button id="btn-add">记 一 笔</button>
         <button class="ghost" id="btn-speak">语音播报</button>
-        <button class="ghost" id="btn-new-event">新建事项</button>
       </div>
     </div>
   </section>
@@ -305,7 +328,7 @@
             <th>姓名</th>
             <th style="text-align:right">金额</th>
             <th>事项</th>
-            <th>名目</th>
+            <th>备注</th>
             <th>日期</th>
             <th></th>
           </tr>
@@ -496,21 +519,28 @@ const DEMO_DATA = {
   version: 2,
   events: [
     { id: "e-default", name: "日常往来", date: "" },
-    { id: "e-wedding", name: "我结婚（2021）", date: "2021-10-03" },
+    { id: "e-my-wedding", name: "我结婚", date: "2021-10-03" },
     { id: "e-eryi", name: "二舅家娶媳妇", date: "2026-08-20" },
+    { id: "e-laoli", name: "老李乔迁", date: "2026-03-12" },
+    { id: "e-lingdao", name: "领导女儿升学宴", date: "2025-09-06" },
+    { id: "e-aqiang", name: "阿强二胎满月", date: "2023-05-21" },
+    { id: "e-wang", name: "王小雅结婚", date: "2018-12-08" },
+    { id: "e-biaoge", name: "远房表哥结婚", date: "2019-06-16" },
   ],
   records: [
-    { id: "d01", dir: "out", eventId: "e-eryi", name: "二舅", amount: 2000, note: "娶媳妇，随大份", date: "2026-08-20", void: false, createdAt: "2026-08-20 11:20", history: [] },
-    { id: "d02", dir: "out", eventId: "e-default", name: "老李", amount: 600, note: "乔迁新居", date: "2026-03-12", void: false, createdAt: "2026-03-12 19:40", history: [] },
-    { id: "d03", dir: "out", eventId: "e-default", name: "领导", amount: 800, note: "女儿升学宴", date: "2025-09-06", void: false, createdAt: "2025-09-06 12:05", history: [] },
-    { id: "d04", dir: "out", eventId: "e-default", name: "阿强", amount: 1000, note: "二胎满月", date: "2023-05-21", void: false, createdAt: "2023-05-21 09:15", history: [] },
-    { id: "d05", dir: "out", eventId: "e-default", name: "王小雅", amount: 500, note: "同学结婚，此后再无音讯", date: "2018-12-08", void: false, createdAt: "2018-12-08 17:30", history: [] },
-    { id: "d06", dir: "out", eventId: "e-default", name: "远房表哥", amount: 800, note: "表哥结婚，只见过这一面", date: "2019-06-16", void: false, createdAt: "2019-06-16 15:00", history: [] },
-    { id: "d07", dir: "in", eventId: "e-wedding", name: "二舅", amount: 200, note: "我结婚，二舅随的", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:10", history: [] },
-    { id: "d08", dir: "in", eventId: "e-wedding", name: "阿强", amount: 1000, note: "发小，随得最实在", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:12", history: [] },
-    { id: "d09", dir: "in", eventId: "e-wedding", name: "领导", amount: 500, note: "领导随的，不好不还", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:14", history: [] },
-    { id: "d10", dir: "in", eventId: "e-wedding", name: "老李", amount: 300, note: "当时还是同事", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:16", history: [] },
-    { id: "d11", dir: "in", eventId: "e-wedding", name: "王小雅", amount: 200, note: "小学同学，来了就好", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:18", history: [] },
+    // 送出：每一笔都是别人家办的一件事，所以每笔一个事项；备注只写这笔的情况
+    { id: "d01", dir: "out", eventId: "e-eryi", name: "二舅", amount: 2000, note: "亲戚 · 现金 · 随了大份", date: "2026-08-20", void: false, createdAt: "2026-08-20 11:20", history: [] },
+    { id: "d02", dir: "out", eventId: "e-laoli", name: "老李", amount: 600, note: "同事 · 微信转的", date: "2026-03-12", void: false, createdAt: "2026-03-12 19:40", history: [] },
+    { id: "d03", dir: "out", eventId: "e-lingdao", name: "领导", amount: 800, note: "领导 · 现金", date: "2025-09-06", void: false, createdAt: "2025-09-06 12:05", history: [] },
+    { id: "d04", dir: "out", eventId: "e-aqiang", name: "阿强", amount: 1000, note: "发小 · 微信转的", date: "2023-05-21", void: false, createdAt: "2023-05-21 09:15", history: [] },
+    { id: "d05", dir: "out", eventId: "e-wang", name: "王小雅", amount: 500, note: "同学 · 此后再无音讯", date: "2018-12-08", void: false, createdAt: "2018-12-08 17:30", history: [] },
+    { id: "d06", dir: "out", eventId: "e-biaoge", name: "远房表哥", amount: 800, note: "亲戚 · 只见过这一面", date: "2019-06-16", void: false, createdAt: "2019-06-16 15:00", history: [] },
+    // 收到：一场事挂一堆礼，事由「我结婚」只在事项里出现一次
+    { id: "d07", dir: "in", eventId: "e-my-wedding", name: "二舅", amount: 200, note: "亲戚 · 现金", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:10", history: [] },
+    { id: "d08", dir: "in", eventId: "e-my-wedding", name: "阿强", amount: 1000, note: "发小 · 随得最实在", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:12", history: [] },
+    { id: "d09", dir: "in", eventId: "e-my-wedding", name: "领导", amount: 500, note: "领导 · 不好不还", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:14", history: [] },
+    { id: "d10", dir: "in", eventId: "e-my-wedding", name: "老李", amount: 300, note: "同事 · 当时还没离职", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:16", history: [] },
+    { id: "d11", dir: "in", eventId: "e-my-wedding", name: "王小雅", amount: 200, note: "同学 · 她妈代送的", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:18", history: [] },
   ],
 };
 
@@ -550,6 +580,15 @@ const Ledger = {
   eventName(id) {
     const e = this.state.events.find((x) => x.id === id);
     return e ? e.name : "—";
+  },
+  // 事项按名字解析：有同名的用它，没有就新建（支持录入时直接打字）
+  resolveEvent(name, date) {
+    const n = String(name || "").trim();
+    if (!n) return DEFAULT_EVENT.id;
+    const hit = this.state.events.find((e) => e.name === n);
+    if (hit) return hit.id;
+    const ev = this.addEvent(n, date);
+    return ev ? ev.id : DEFAULT_EVENT.id;
   },
   addEvent(name, date) {
     const ev = { id: Utils.uid("e-"), name: String(name).trim(), date: date || "" };
@@ -738,7 +777,7 @@ const Exporter = {
       金额: r.amount,
       大写: Utils.amountToChinese(r.amount),
       事项: Ledger.eventName(r.eventId),
-      名目: r.note,
+      备注: r.note,
       日期: r.date,
       状态: r.void ? "已作废" : "有效",
       改动次数: r.history.length,
@@ -837,7 +876,7 @@ const UI = {
       this.el("capital").textContent = v ? `大写：${Utils.amountToChinese(v)}` : "";
     });
     this.el("btn-add").addEventListener("click", () => this.tryAdd());
-    ["f-name", "f-amount", "f-note"].forEach((id) => {
+    ["f-name", "f-amount", "f-note", "f-event"].forEach((id) => {
       this.el(id).addEventListener("keydown", (e) => {
         if (e.key === "Enter") this.tryAdd();
       });
@@ -848,14 +887,16 @@ const UI = {
       if (!name || !amount) return alert("先填姓名和金额，才好念出来。");
       Speech.say(this.dir, name, amount);
     });
-    this.el("btn-new-event").addEventListener("click", () => {
-      const name = prompt("事项名称（如：二舅家娶媳妇）");
-      if (name === null) return;
-      const ev = Ledger.addEvent(name);
-      if (!ev) return alert("事项得有个名字。");
-      this.renderEventOptions();
-      this.el("f-event").value = ev.id;
-      this.render();
+    // 备注预设：点一下追加到备注里，用 · 分隔
+    document.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const input = this.el("f-note");
+        const val = input.value.trim();
+        const word = chip.dataset.preset;
+        if (val.split("·").map((x) => x.trim()).includes(word)) return;
+        input.value = val ? `${val} · ${word}` : word;
+        input.focus();
+      });
     });
     this.el("f-filter").addEventListener("change", (e) => {
       this.filter = e.target.value;
@@ -897,7 +938,11 @@ const UI = {
 
   renderEventOptions() {
     const events = Ledger.events();
-    this.el("f-event").innerHTML = events.map((e) => `<option value="${e.id}">${Utils.esc(e.name)}</option>`).join("");
+    // 录入用 datalist：可以直接打字新建，也可以从已有事项里挑
+    this.el("event-list").innerHTML = events
+      .filter((e) => e.id !== DEFAULT_EVENT.id)
+      .map((e) => `<option value="${Utils.esc(e.name)}"></option>`)
+      .join("");
     this.el("f-filter").innerHTML =
       `<option value="all">全部事项</option>` + events.map((e) => `<option value="${e.id}">${Utils.esc(e.name)}</option>`).join("");
     this.el("f-filter").value = this.filter;
@@ -908,7 +953,7 @@ const UI = {
     const amount = this.el("f-amount").value;
     const note = this.el("f-note").value.trim();
     const date = this.el("f-date").value || Utils.today();
-    const eventId = this.el("f-event").value || DEFAULT_EVENT.id;
+    const eventId = Ledger.resolveEvent(this.el("f-event").value, date);
     if (!name) return alert("总得有个名字。");
     if (!amount || Number(amount) <= 0) return alert("金额得是个正数。");
 
@@ -944,6 +989,7 @@ const UI = {
     this.el("f-note").value = "";
     this.el("capital").textContent = "";
     this.el("f-name").focus();
+    this.renderEventOptions(); // 可能刚新建了事项
     this.render();
   },
 
@@ -954,7 +1000,7 @@ const UI = {
     if (name === null) return;
     const amount = prompt("金额", rec.amount);
     if (amount === null) return;
-    const note = prompt("名目", rec.note);
+    const note = prompt("备注", rec.note);
     if (note === null) return;
     Ledger.update(id, { name: name.trim(), amount, note: note.trim() });
     this.render();
