@@ -22,7 +22,6 @@
     --rule: #d9d2c2;
     --rule-soft: #e8e2d4;
     --seal: #b7332b;
-    --seal-soft: #b7332b18;
     --in: #1f6b4a;
     --out: #a8532a;
   }
@@ -33,6 +32,7 @@
     font-family: "Songti SC", "STSong", "SimSun", ui-serif, serif;
     line-height: 1.6;
     padding: 0 0 64px;
+    overflow-x: hidden;
   }
   .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
 
@@ -56,7 +56,9 @@
     font-size: 13px; letter-spacing: 0.22em; color: var(--ink-3);
     font-weight: 400; margin-bottom: 10px;
     font-family: ui-monospace, monospace;
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
   }
+  h2 .hint { font-size: 11px; letter-spacing: 0.04em; color: var(--ink-3); font-family: inherit; }
 
   /* 录入区 */
   .entry {
@@ -64,19 +66,28 @@
     border: 1px solid var(--rule);
     padding: 18px;
   }
-  .fields { display: grid; grid-template-columns: 1.2fr 1fr 1.4fr 1fr; gap: 12px; }
-  .field { display: flex; flex-direction: column; gap: 5px; }
-  label { font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
-  input[type="text"], input[type="number"], input[type="date"] {
-    font-family: inherit; font-size: 15px; color: var(--ink);
-    background: transparent;
-    border: none; border-bottom: 1px solid var(--rule);
-    padding: 6px 2px; outline: none;
+  .dir-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .dir-btn {
+    font-family: inherit; font-size: 14px; cursor: pointer;
+    padding: 6px 16px; letter-spacing: 0.06em;
+    border: 1px solid var(--rule); background: transparent; color: var(--ink-3);
   }
-  input:focus { border-bottom-color: var(--seal); }
+  .dir-btn[aria-pressed="true"][data-dir="in"] { border-color: var(--in); color: var(--paper-2); background: var(--in); }
+  .dir-btn[aria-pressed="true"][data-dir="out"] { border-color: var(--out); color: var(--paper-2); background: var(--out); }
+  .dir-hint { font-size: 12px; color: var(--ink-3); }
+  .fields { display: grid; grid-template-columns: 1.1fr 0.9fr 1.2fr 1fr 0.9fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  label { font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
+  input[type="text"], input[type="number"], input[type="date"], select {
+    font-family: inherit; font-size: 15px; color: var(--ink);
+    background: transparent; max-width: 100%;
+    border: none; border-bottom: 1px solid var(--rule);
+    padding: 6px 2px; outline: none; border-radius: 0;
+  }
+  input:focus, select:focus { border-bottom-color: var(--seal); }
   .capital {
     min-height: 20px; font-size: 12px; color: var(--seal);
-    font-family: inherit; letter-spacing: 0.06em; margin-top: 8px;
+    letter-spacing: 0.06em; margin-top: 8px;
   }
   .entry-actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   button {
@@ -91,22 +102,46 @@
 
   /* 统计条 */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--rule); background: var(--paper-2); }
-  .stat { padding: 14px 16px; border-right: 1px solid var(--rule-soft); }
+  .stat { padding: 14px 16px; border-right: 1px solid var(--rule-soft); min-width: 0; }
   .stat:last-child { border-right: none; }
   .stat .k { font-size: 11px; color: var(--ink-3); letter-spacing: 0.14em; }
-  .stat .v { font-size: 22px; font-family: ui-monospace, monospace; margin-top: 4px; }
+  .stat .v { font-size: 22px; font-family: ui-monospace, monospace; margin-top: 4px; word-break: break-all; }
+  .stat .v.in { color: var(--in); }
+  .stat .v.out { color: var(--out); }
 
-  /* 账本 */
+  /* 荒诞层：人情资产负债表 */
+  .absurd { border: 1px solid var(--ink); background: var(--paper-2); }
+  .absurd-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 12px 16px; border-bottom: 1px solid var(--ink); gap: 12px; flex-wrap: wrap;
+  }
+  .absurd-head strong { font-size: 15px; letter-spacing: 0.1em; }
+  .absurd-head span { font-size: 11px; color: var(--ink-3); font-family: ui-monospace, monospace; }
+  .absurd-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .metric { padding: 14px 16px; border-right: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); min-width: 0; }
+  .metric:nth-child(2n) { border-right: none; }
+  .metric .label { font-size: 12px; color: var(--ink-2); letter-spacing: 0.08em; }
+  .metric .value { font-size: 20px; font-family: ui-monospace, monospace; margin: 4px 0 2px; word-break: break-all; }
+  .metric .value.seal { color: var(--seal); }
+  .metric .foot { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+  .absurd-note { padding: 10px 16px; font-size: 11px; color: var(--ink-3); }
+
+  /* 表格 */
+  .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   thead th {
     text-align: left; font-weight: 400; font-size: 11px; letter-spacing: 0.16em;
     color: var(--ink-3); border-bottom: 1px solid var(--ink); padding: 8px 6px;
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, monospace; white-space: nowrap;
   }
   tbody td { padding: 10px 6px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
   tbody tr.void td { color: var(--ink-3); text-decoration: line-through; }
   td.amount { font-family: ui-monospace, monospace; text-align: right; white-space: nowrap; }
-  .tag { font-size: 11px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 2px; letter-spacing: 0.08em; }
+  td.amount.in { color: var(--in); }
+  td.amount.out { color: var(--out); }
+  .tag { font-size: 11px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 2px; letter-spacing: 0.08em; white-space: nowrap; }
+  .tag.in { color: var(--in); }
+  .tag.out { color: var(--out); }
   .note { color: var(--ink-3); font-size: 12px; }
   .trace { color: var(--seal); font-size: 11px; font-family: ui-monospace, monospace; }
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
@@ -140,11 +175,12 @@
   @media (max-width: 720px) {
     .fields { grid-template-columns: 1fr 1fr; }
     .stats { grid-template-columns: 1fr 1fr; }
-    .stat:nth-child(2) { border-right: none; }
+    .stat:nth-child(2n) { border-right: none; }
     .stat:nth-child(1), .stat:nth-child(2) { border-bottom: 1px solid var(--rule-soft); }
+    .absurd-grid { grid-template-columns: 1fr; }
+    .metric { border-right: none; }
     h1 { font-size: 24px; }
     table { font-size: 13px; }
-    thead th:nth-child(4), tbody td:nth-child(4) { display: none; }
   }
 </style>
 </head>
@@ -162,6 +198,11 @@
   <section>
     <h2>录 入</h2>
     <div class="entry">
+      <div class="dir-row">
+        <button type="button" class="dir-btn" data-dir="in" aria-pressed="true">收到</button>
+        <button type="button" class="dir-btn" data-dir="out" aria-pressed="false">送出</button>
+        <span class="dir-hint" id="dir-hint">别人随给我的——记在负债一侧。</span>
+      </div>
       <div class="fields">
         <div class="field">
           <label for="f-name">姓名</label>
@@ -170,6 +211,10 @@
         <div class="field">
           <label for="f-amount">金额（元）</label>
           <input type="number" id="f-amount" min="0" step="1" placeholder="1000">
+        </div>
+        <div class="field">
+          <label for="f-event">事项</label>
+          <select id="f-event"></select>
         </div>
         <div class="field">
           <label for="f-note">名目</label>
@@ -184,6 +229,7 @@
       <div class="entry-actions">
         <button id="btn-add">记 一 笔</button>
         <button class="ghost" id="btn-speak">语音播报</button>
+        <button class="ghost" id="btn-new-event">新建事项</button>
       </div>
     </div>
   </section>
@@ -192,26 +238,67 @@
     <h2>总 账</h2>
     <div class="stats">
       <div class="stat"><div class="k">笔数</div><div class="v" id="s-count">0</div></div>
-      <div class="stat"><div class="k">合计金额</div><div class="v" id="s-sum">¥0</div></div>
-      <div class="stat"><div class="k">人数</div><div class="v" id="s-people">0</div></div>
-      <div class="stat"><div class="k">单笔均值</div><div class="v" id="s-avg">¥0</div></div>
+      <div class="stat"><div class="k">收到合计</div><div class="v in" id="s-in">¥0</div></div>
+      <div class="stat"><div class="k">送出合计</div><div class="v out" id="s-out">¥0</div></div>
+      <div class="stat"><div class="k">净额</div><div class="v" id="s-net">¥0</div></div>
     </div>
   </section>
 
   <section>
-    <h2>明 细</h2>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:22%">姓名</th>
-          <th style="width:16%">金额</th>
-          <th style="width:26%">名目</th>
-          <th style="width:16%">日期</th>
-          <th style="width:20%"></th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
+    <h2>人情资产负债表 <span class="hint">（荒诞层骨架，话术待定稿）</span></h2>
+    <div class="absurd">
+      <div class="absurd-head">
+        <strong id="absurd-verdict">尚无往来，资产负债两清。</strong>
+        <span id="absurd-asof"></span>
+      </div>
+      <div class="absurd-grid" id="absurd-grid"></div>
+      <div class="absurd-note">本表所有指标由本系统自行发明，不具备任何财务、法律或人际关系参考价值。</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>关 系 人</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th style="text-align:right">收到</th>
+            <th style="text-align:right">送出</th>
+            <th style="text-align:right">净额</th>
+            <th style="text-align:right">笔数</th>
+            <th>最近往来</th>
+          </tr>
+        </thead>
+        <tbody id="people-rows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="people-empty">还没有关系人。清白。</div>
+  </section>
+
+  <section>
+    <h2>明 细
+      <span class="hint">
+        <label for="f-filter" style="letter-spacing:0.04em">按事项筛选</label>
+        <select id="f-filter" style="font-size:12px"></select>
+      </span>
+    </h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>方向</th>
+            <th>姓名</th>
+            <th style="text-align:right">金额</th>
+            <th>事项</th>
+            <th>名目</th>
+            <th>日期</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
     <div class="empty" id="empty">账本还是空的。人情债尚未产生，恭喜。</div>
   </section>
 
@@ -247,11 +334,11 @@
 <script>
 /* ============================================================
  * 人情债管理系统
- * 复用自 jingguanzhang/gift-book（CC-BY-SA-4.0，见页脚出处标注）的零件：
+ * 复用自 jingguanzhang/gift-book（见页脚出处标注）的零件：
  *   - Utils.amountToChinese  金额转中文大写算法（原样搬运）
  *   - 重名 / 同名同额检测思路
  *   - XLSX（SheetJS）导出写法
- * 其余为本项目新写。
+ * 人情往来模型（方向 / 事项 / 关系人聚合）与荒诞层为本项目新写。
  * ============================================================ */
 
 /* ---------- Utils ---------- */
@@ -288,7 +375,9 @@ const Utils = {
       .replace(/角$/g, "角整");
   },
   formatCurrency(amount) {
-    return new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", maximumFractionDigits: 0 }).format(amount || 0);
+    const n = Number(amount) || 0;
+    const s = new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", maximumFractionDigits: 0 }).format(Math.abs(n));
+    return n < 0 ? "-" + s : s;
   },
   today() {
     const d = new Date(), pad = (x) => String(x).padStart(2, "0");
@@ -298,11 +387,16 @@ const Utils = {
     const d = new Date(), pad = (x) => String(x).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   },
-  uid() {
-    return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  uid(prefix) {
+    return (prefix || "r") + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   },
   esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  },
+  yearsSince(dateStr) {
+    const t = Date.parse(dateStr);
+    if (isNaN(t)) return 0;
+    return (Date.now() - t) / (365.25 * 24 * 3600 * 1000);
   },
 };
 
@@ -312,11 +406,11 @@ const Store = {
   read() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { records: [] };
+      if (!raw) return null;
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed.records) ? parsed : { records: [] };
+      return parsed && Array.isArray(parsed.records) ? parsed : null;
     } catch (e) {
-      return { records: [] };
+      return null;
     }
   },
   write(state) {
@@ -328,26 +422,63 @@ const Store = {
   },
 };
 
-/* ---------- Ledger：账本模型（软删除 + 修改留痕） ---------- */
-const Ledger = {
-  state: { records: [] },
+/* ---------- Ledger：账本模型（事项 + 方向 + 软删除 + 修改留痕） ---------- */
+const DEFAULT_EVENT = { id: "e-default", name: "日常往来", date: "" };
 
-  load() {
-    this.state = Store.read();
+const Ledger = {
+  state: { version: 2, events: [DEFAULT_EVENT], records: [] },
+
+  load(seed) {
+    const stored = Store.read();
+    const base = stored || seed || { version: 2, events: [DEFAULT_EVENT], records: [] };
+    this.state = this.migrate(base);
+    if (!stored && seed) this.save();
+  },
+  // 兼容 T2 时期无方向/事项的旧数据：默认按「收到」+ 默认事项归属
+  migrate(state) {
+    const events = Array.isArray(state.events) && state.events.length ? state.events.slice() : [DEFAULT_EVENT];
+    if (!events.some((e) => e.id === DEFAULT_EVENT.id)) events.unshift(DEFAULT_EVENT);
+    const records = (state.records || []).map((r) => ({
+      dir: r.dir === "out" ? "out" : "in",
+      eventId: r.eventId && events.some((e) => e.id === r.eventId) ? r.eventId : DEFAULT_EVENT.id,
+      history: Array.isArray(r.history) ? r.history : [],
+      void: !!r.void,
+      ...r,
+      id: r.id || Utils.uid(),
+    }));
+    return { version: 2, events, records };
   },
   save() {
     Store.write(this.state);
   },
+
+  events() {
+    return this.state.events;
+  },
+  eventName(id) {
+    const e = this.state.events.find((x) => x.id === id);
+    return e ? e.name : "—";
+  },
+  addEvent(name, date) {
+    const ev = { id: Utils.uid("e-"), name: String(name).trim(), date: date || "" };
+    if (!ev.name) return null;
+    this.state.events.push(ev);
+    this.save();
+    return ev;
+  },
+
   all() {
     return this.state.records;
   },
   live() {
     return this.state.records.filter((r) => !r.void);
   },
-  add({ name, amount, note, date }) {
+  add({ dir, name, amount, note, date, eventId }) {
     const rec = {
       id: Utils.uid(),
-      name: name.trim(),
+      dir: dir === "out" ? "out" : "in",
+      eventId: eventId || DEFAULT_EVENT.id,
+      name: String(name).trim(),
       amount: Number(amount),
       note: (note || "").trim(),
       date: date || Utils.today(),
@@ -363,7 +494,7 @@ const Ledger = {
     const rec = this.state.records.find((r) => r.id === id);
     if (!rec) return null;
     const changes = [];
-    for (const k of ["name", "amount", "note", "date"]) {
+    for (const k of ["name", "amount", "note", "date", "dir", "eventId"]) {
       if (patch[k] !== undefined && String(patch[k]) !== String(rec[k])) {
         changes.push({ field: k, from: rec[k], to: patch[k], at: Utils.stamp() });
         rec[k] = k === "amount" ? Number(patch[k]) : patch[k];
@@ -383,27 +514,120 @@ const Ledger = {
     this.save();
     return rec;
   },
-  replaceAll(records) {
-    this.state.records = records;
+  replaceAll(state) {
+    this.state = this.migrate(state);
     this.save();
   },
+
   stats() {
     const live = this.live();
-    const sum = live.reduce((t, r) => t + (Number(r.amount) || 0), 0);
-    const people = new Set(live.map((r) => r.name)).size;
+    const sumIn = live.filter((r) => r.dir === "in").reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const sumOut = live.filter((r) => r.dir === "out").reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    return { count: live.length, sumIn, sumOut, net: sumIn - sumOut, people: new Set(live.map((r) => r.name)).size };
+  },
+
+  // 关系人聚合：同一个人在所有事项下的往来汇总
+  people() {
+    const map = new Map();
+    for (const r of this.live()) {
+      const key = r.name;
+      if (!map.has(key)) map.set(key, { name: key, in: 0, out: 0, count: 0, last: "" });
+      const p = map.get(key);
+      p[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
+      p.count += 1;
+      if (!p.last || (r.date || "") > p.last) p.last = r.date || "";
+    }
+    return [...map.values()]
+      .map((p) => ({ ...p, net: p.in - p.out }))
+      .sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.in + b.out - (a.in + a.out));
+  },
+};
+
+/* ---------- Absurd：荒诞层
+ * 骨架 + 占位指标。指标口径与话术在本期后续细化（Spec #21），
+ * 这里只保证「从记录集合派生指标」的计算入口稳定：compute(records) -> metrics[]
+ * -------------------------------------------------------------- */
+const Absurd = {
+  STALE_YEARS: 3, // 超过这个年限没有回礼的送出，计入「坏账」
+
+  compute() {
+    const s = Ledger.stats();
+    const people = Ledger.people();
+
+    // 应收账款：我送出去、对方还没还回来的部分（按关系人逐个算，只取欠我的一侧）
+    const receivable = people.reduce((t, p) => t + Math.max(0, p.out - p.in), 0);
+    // 人情负债：别人随给我、我还没回的部分
+    const payable = people.reduce((t, p) => t + Math.max(0, p.in - p.out), 0);
+    // 坏账：送出超过 STALE_YEARS 年且该关系人至今仍是净欠我
+    const badDebt = Ledger.live()
+      .filter((r) => r.dir === "out" && Utils.yearsSince(r.date) > this.STALE_YEARS)
+      .filter((r) => {
+        const p = people.find((x) => x.name === r.name);
+        return p && p.out > p.in;
+      })
+      .reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    // 年化收益率：占位公式——净额 / 送出总额 / 平均账龄
+    const ages = Ledger.live().map((r) => Utils.yearsSince(r.date)).filter((y) => y > 0);
+    const avgAge = ages.length ? ages.reduce((a, b) => a + b, 0) / ages.length : 0;
+    const annualized = s.sumOut > 0 && avgAge > 0.05 ? (s.net / s.sumOut / avgAge) * 100 : 0;
+
     return {
-      count: live.length,
-      sum,
-      people,
-      avg: live.length ? Math.round(sum / live.length) : 0,
+      metrics: [
+        {
+          key: "receivable",
+          label: "应收账款（人情）",
+          value: Utils.formatCurrency(receivable),
+          foot: "你送出去、对方还没还的部分。催收手段：办事。",
+        },
+        {
+          key: "payable",
+          label: "人情负债",
+          value: Utils.formatCurrency(payable),
+          foot: "别人随给你、你还没回的部分。到期日：对方下次办事。",
+          seal: payable > receivable,
+        },
+        {
+          key: "net",
+          label: "净人情头寸",
+          value: Utils.formatCurrency(s.net),
+          foot: s.net >= 0 ? "净收人情——欠着的是你。" : "净送人情——你处于债权人位置。",
+        },
+        {
+          key: "badDebt",
+          label: `坏账（逾期 ${this.STALE_YEARS} 年以上）`,
+          value: Utils.formatCurrency(badDebt),
+          foot: "送出多年、对方至今没办过事。计提减值，感情照旧。",
+          seal: badDebt > 0,
+        },
+        {
+          key: "annualized",
+          label: "人情年化收益率",
+          value: `${annualized.toFixed(2)}%`,
+          foot: `按平均账龄 ${avgAge.toFixed(1)} 年折算的占位公式，仅供一本正经使用。`,
+        },
+        {
+          key: "counterparty",
+          label: "交易对手方",
+          value: `${s.people} 人`,
+          foot: `${s.count} 笔往来。对手方越多，系统性风险越高。`,
+        },
+      ],
+      verdict: this.verdict(s, payable, receivable),
     };
+  },
+
+  verdict(s, payable, receivable) {
+    if (!s.count) return "尚无往来，资产负债两清。";
+    if (payable > receivable * 2) return "严重资不抵债：你欠的人情远多于别人欠你的。";
+    if (receivable > payable * 2) return "债权人姿态：你在人情市场上过度放贷。";
+    return "账面基本平衡，人情往来处于健康区间。";
   },
 };
 
 /* ---------- Checks：重名 / 同名同额检测（思路来自 gift-book） ---------- */
 const Checks = {
-  inspect(name, amount) {
-    const same = Ledger.live().filter((r) => r.name === name.trim());
+  inspect(dir, name, amount, eventId) {
+    const same = Ledger.live().filter((r) => r.name === String(name).trim() && r.dir === dir && r.eventId === eventId);
     return {
       sameName: same.length > 0,
       sameNameCount: same.length,
@@ -413,27 +637,37 @@ const Checks = {
 };
 
 /* ---------- Exporter ---------- */
+const DIR_LABEL = { in: "收到", out: "送出" };
 const Exporter = {
   xlsx() {
     const rows = Ledger.all().map((r) => ({
+      方向: DIR_LABEL[r.dir],
       姓名: r.name,
       金额: r.amount,
       大写: Utils.amountToChinese(r.amount),
+      事项: Ledger.eventName(r.eventId),
       名目: r.note,
       日期: r.date,
       状态: r.void ? "已作废" : "有效",
       改动次数: r.history.length,
     }));
     if (!rows.length) return alert("账本是空的，没什么可导出的。");
-    const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "人情往来");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "人情往来");
+    const people = Ledger.people().map((p) => ({
+      姓名: p.name,
+      收到: p.in,
+      送出: p.out,
+      净额: p.net,
+      笔数: p.count,
+      最近往来: p.last,
+    }));
+    if (people.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(people), "关系人汇总");
     XLSX.writeFile(wb, `人情债-${Utils.today()}.xlsx`);
   },
   json() {
-    const blob = new Blob([JSON.stringify({ version: 1, exportedAt: Utils.stamp(), records: Ledger.all() }, null, 2)], {
-      type: "application/json",
-    });
+    const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -450,7 +684,7 @@ const Exporter = {
       return alert("这个文件不是本系统导出的数据文件。");
     }
     if (!data || !Array.isArray(data.records)) return alert("数据文件里没有找到记录。");
-    Ledger.replaceAll(data.records);
+    Ledger.replaceAll(data);
     UI.render();
     alert(`已导入 ${data.records.length} 条记录。`);
   },
@@ -461,9 +695,10 @@ const Speech = {
   available() {
     return typeof window !== "undefined" && "speechSynthesis" in window;
   },
-  say(name, amount) {
+  say(dir, name, amount) {
     if (!this.available()) return alert("这台设备不支持语音播报。");
-    const text = `${name} 贺礼 ${Utils.amountToChinese(amount)}`;
+    const verb = dir === "out" ? "回礼" : "贺礼";
+    const text = `${name} ${verb} ${Utils.amountToChinese(amount)}`;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     const zh = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith("zh"));
@@ -474,7 +709,15 @@ const Speech = {
 };
 
 /* ---------- UI ---------- */
+const DIR_HINT = {
+  in: "别人随给我的——记在负债一侧。",
+  out: "我随出去的——记在应收一侧。",
+};
+
 const UI = {
+  dir: "in",
+  filter: "all",
+
   el(id) {
     return document.getElementById(id);
   },
@@ -484,10 +727,14 @@ const UI = {
     this.el("f-date").value = Utils.today();
     this.el("mode-note").textContent = "自托管态：数据存在这台设备的浏览器里";
     this.bind();
+    this.renderEventOptions();
     this.render();
   },
 
   bind() {
+    document.querySelectorAll(".dir-btn").forEach((btn) => {
+      btn.addEventListener("click", () => this.setDir(btn.dataset.dir));
+    });
     this.el("f-amount").addEventListener("input", (e) => {
       const v = e.target.value;
       this.el("capital").textContent = v ? `大写：${Utils.amountToChinese(v)}` : "";
@@ -502,7 +749,20 @@ const UI = {
       const name = this.el("f-name").value.trim();
       const amount = this.el("f-amount").value;
       if (!name || !amount) return alert("先填姓名和金额，才好念出来。");
-      Speech.say(name, amount);
+      Speech.say(this.dir, name, amount);
+    });
+    this.el("btn-new-event").addEventListener("click", () => {
+      const name = prompt("事项名称（如：二舅家娶媳妇）");
+      if (name === null) return;
+      const ev = Ledger.addEvent(name);
+      if (!ev) return alert("事项得有个名字。");
+      this.renderEventOptions();
+      this.el("f-event").value = ev.id;
+      this.render();
+    });
+    this.el("f-filter").addEventListener("change", (e) => {
+      this.filter = e.target.value;
+      this.render();
     });
     this.el("btn-xlsx").addEventListener("click", () => Exporter.xlsx());
     this.el("btn-json").addEventListener("click", () => Exporter.json());
@@ -516,14 +776,27 @@ const UI = {
     this.el("rows").addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-act]");
       if (!btn) return;
-      const id = btn.dataset.id;
       if (btn.dataset.act === "void") {
-        Ledger.toggleVoid(id);
+        Ledger.toggleVoid(btn.dataset.id);
         this.render();
       } else if (btn.dataset.act === "edit") {
-        this.editRecord(id);
+        this.editRecord(btn.dataset.id);
       }
     });
+  },
+
+  setDir(dir) {
+    this.dir = dir === "out" ? "out" : "in";
+    document.querySelectorAll(".dir-btn").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.dir === this.dir)));
+    this.el("dir-hint").textContent = DIR_HINT[this.dir];
+  },
+
+  renderEventOptions() {
+    const events = Ledger.events();
+    this.el("f-event").innerHTML = events.map((e) => `<option value="${e.id}">${Utils.esc(e.name)}</option>`).join("");
+    this.el("f-filter").innerHTML =
+      `<option value="all">全部事项</option>` + events.map((e) => `<option value="${e.id}">${Utils.esc(e.name)}</option>`).join("");
+    this.el("f-filter").value = this.filter;
   },
 
   tryAdd() {
@@ -531,31 +804,27 @@ const UI = {
     const amount = this.el("f-amount").value;
     const note = this.el("f-note").value.trim();
     const date = this.el("f-date").value || Utils.today();
+    const eventId = this.el("f-event").value || DEFAULT_EVENT.id;
     if (!name) return alert("总得有个名字。");
     if (!amount || Number(amount) <= 0) return alert("金额得是个正数。");
 
-    const check = Checks.inspect(name, amount);
-    if (check.sameName) {
-      this.openConfirm(name, amount, note, date, check);
-      return;
-    }
-    this.commit(name, amount, note, date);
+    const check = Checks.inspect(this.dir, name, amount, eventId);
+    if (check.sameName) return this.openConfirm({ name, amount, note, date, eventId }, check);
+    this.commit({ name, amount, note, date, eventId });
   },
 
-  openConfirm(name, amount, note, date, check) {
-    const body = this.el("confirm-body");
-    const lines = [
-      `<p><strong>${Utils.esc(name)}</strong> · ${Utils.formatCurrency(amount)}（${Utils.amountToChinese(amount)}）</p>`,
-      `<p class="warn">账本里已经有 ${check.sameNameCount} 笔「${Utils.esc(name)}」。</p>`,
-    ];
-    if (check.exact) lines.push('<p class="warn">而且金额一模一样——大概率是记重了。</p>');
-    body.innerHTML = lines.join("");
+  openConfirm(entry, check) {
+    this.el("confirm-body").innerHTML = [
+      `<p><strong>${Utils.esc(entry.name)}</strong> · ${DIR_LABEL[this.dir]} · ${Utils.formatCurrency(entry.amount)}（${Utils.amountToChinese(entry.amount)}）</p>`,
+      `<p class="warn">同一事项下已经有 ${check.sameNameCount} 笔「${Utils.esc(entry.name)}」的${DIR_LABEL[this.dir]}记录。</p>`,
+      check.exact ? '<p class="warn">而且金额一模一样——大概率是记重了。</p>' : "",
+    ].join("");
     this.el("confirm-overlay").classList.add("open");
     const ok = this.el("confirm-ok");
     const handler = () => {
       ok.removeEventListener("click", handler);
       this.closeConfirm();
-      this.commit(name, amount, note, date);
+      this.commit(entry);
     };
     ok.addEventListener("click", handler);
   },
@@ -564,8 +833,8 @@ const UI = {
     this.el("confirm-overlay").classList.remove("open");
   },
 
-  commit(name, amount, note, date) {
-    Ledger.add({ name, amount, note, date });
+  commit(entry) {
+    Ledger.add({ ...entry, dir: this.dir });
     this.el("f-name").value = "";
     this.el("f-amount").value = "";
     this.el("f-note").value = "";
@@ -590,18 +859,60 @@ const UI = {
   render() {
     const s = Ledger.stats();
     this.el("s-count").textContent = s.count;
-    this.el("s-sum").textContent = Utils.formatCurrency(s.sum);
-    this.el("s-people").textContent = s.people;
-    this.el("s-avg").textContent = Utils.formatCurrency(s.avg);
+    this.el("s-in").textContent = Utils.formatCurrency(s.sumIn);
+    this.el("s-out").textContent = Utils.formatCurrency(s.sumOut);
+    this.el("s-net").textContent = Utils.formatCurrency(s.net);
 
-    const records = Ledger.all();
+    this.renderAbsurd();
+    this.renderPeople();
+    this.renderRows();
+  },
+
+  renderAbsurd() {
+    const { metrics, verdict } = Absurd.compute();
+    this.el("absurd-verdict").textContent = verdict;
+    this.el("absurd-asof").textContent = `截至 ${Utils.today()}`;
+    this.el("absurd-grid").innerHTML = metrics
+      .map(
+        (m) => `
+      <div class="metric" data-metric="${m.key}">
+        <div class="label">${Utils.esc(m.label)}</div>
+        <div class="value${m.seal ? " seal" : ""}">${Utils.esc(m.value)}</div>
+        <div class="foot">${Utils.esc(m.foot)}</div>
+      </div>`
+      )
+      .join("");
+  },
+
+  renderPeople() {
+    const people = Ledger.people();
+    this.el("people-empty").style.display = people.length ? "none" : "block";
+    this.el("people-rows").innerHTML = people
+      .map(
+        (p) => `
+      <tr>
+        <td>${Utils.esc(p.name)}</td>
+        <td class="amount in">${Utils.formatCurrency(p.in)}</td>
+        <td class="amount out">${Utils.formatCurrency(p.out)}</td>
+        <td class="amount">${Utils.formatCurrency(p.net)}</td>
+        <td class="amount">${p.count}</td>
+        <td class="note">${Utils.esc(p.last) || "—"}</td>
+      </tr>`
+      )
+      .join("");
+  },
+
+  renderRows() {
+    const records = Ledger.all().filter((r) => this.filter === "all" || r.eventId === this.filter);
     this.el("empty").style.display = records.length ? "none" : "block";
     this.el("rows").innerHTML = records
       .map(
         (r) => `
       <tr class="${r.void ? "void" : ""}">
+        <td><span class="tag ${r.dir}">${DIR_LABEL[r.dir]}</span></td>
         <td>${Utils.esc(r.name)}${r.history.length ? `<div class="trace">改过 ${r.history.length} 次</div>` : ""}</td>
-        <td class="amount">${Utils.formatCurrency(r.amount)}</td>
+        <td class="amount ${r.dir}">${Utils.formatCurrency(r.amount)}</td>
+        <td class="note">${Utils.esc(Ledger.eventName(r.eventId))}</td>
         <td>${Utils.esc(r.note) || '<span class="note">—</span>'}</td>
         <td class="note">${Utils.esc(r.date)}</td>
         <td>
