@@ -127,14 +127,20 @@
   }
   .chip:hover { border-color: var(--primary); color: var(--primary); }
   .chip:active { transform: scale(0.95); }
-  .chip-wrap { display: inline-flex; align-items: stretch; }
-  .chip-wrap .chip { border-right: none; border-radius: var(--r-pill) 0 0 var(--r-pill); padding-right: 10px; }
-  .chip-del {
-    font-family: inherit; font-size: 13px; line-height: 1; padding: 0 12px 0 6px; cursor: pointer;
-    background: var(--canvas); color: var(--ink-48);
-    border: 1px solid var(--hairline); border-left: none; border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  /* 自定义标签 = 标签 + 删除叉 拼成的一个胶囊：
+     边框由外层容器画一整圈，子元素一律不画边——否则两半边框的颜色会在 hover 时对不上。 */
+  .chip-wrap {
+    display: inline-flex; align-items: stretch; overflow: hidden;
+    border: 1px solid var(--hairline); border-radius: var(--r-pill);
   }
-  .chip-del:hover { color: var(--primary); border-color: var(--primary); }
+  .chip-wrap:hover { border-color: var(--primary); }
+  .chip-wrap .chip { border: none; border-radius: 0; padding-right: 8px; }
+  .chip-del {
+    font-family: inherit; font-size: 13px; line-height: 1; padding: 0 14px 0 6px; cursor: pointer;
+    background: var(--canvas); color: var(--ink-48);
+    border: none; border-radius: 0;
+  }
+  .chip-del:hover { background: var(--divider-soft); color: var(--ink); }
   .chip-add { border-style: dashed; color: var(--ink-48); }
   .entry-hint { font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48); margin-top: 17px; line-height: 1.4; }
   .entry-actions { display: flex; gap: 12px; align-items: center; margin-top: 24px; flex-wrap: wrap; }
