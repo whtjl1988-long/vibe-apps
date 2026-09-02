@@ -22,8 +22,11 @@
     --rule: #d9d2c2;
     --rule-soft: #e8e2d4;
     --seal: #b7332b;
-    --in: #1f6b4a;
-    --out: #a8532a;
+    /* 收/送两色经色盲安全校验（protan ΔE 19.8，色盲安全线为 8）：
+       原来的绿/棕橙 ΔE 只有 4.0，红绿色盲下几乎分不出。 */
+    --in: #1a63a0;   /* 靛蓝 = 收到 */
+    --out: #b0561c;  /* 赭石 = 送出 */
+    --grid: #e2dccd;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -142,6 +145,39 @@
   .metric .value.seal { color: var(--seal); }
   .metric .foot { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
   .absurd-note { padding: 10px 16px; font-size: 11px; color: var(--ink-3); }
+
+  /* 看板 */
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule); }
+  .panel { background: var(--paper-2); padding: 16px; min-width: 0; }
+  .panel.wide { grid-column: 1 / -1; }
+  .panel h3 { font-size: 13px; font-weight: 400; letter-spacing: 0.1em; margin-bottom: 2px; }
+  .panel .sub { font-size: 11px; color: var(--ink-3); margin-bottom: 12px; }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink-2); margin-bottom: 10px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; }
+  .panel svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .panel .none { font-size: 12px; color: var(--ink-3); padding: 18px 0; }
+  .ax { font-size: 10px; fill: var(--ink-3); font-family: ui-monospace, monospace; }
+  .lbl { font-size: 11px; fill: var(--ink-2); }
+  .val { font-size: 11px; fill: var(--ink-2); font-family: ui-monospace, monospace; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .zeroline { stroke: var(--ink-3); stroke-width: 1; }
+  .mark { cursor: default; }
+  .mark:hover { opacity: 0.82; }
+  #tip {
+    position: fixed; z-index: 60; pointer-events: none; display: none;
+    background: var(--ink); color: var(--paper-2); font-size: 12px; line-height: 1.5;
+    padding: 6px 10px; max-width: 220px;
+  }
+  #tip.on { display: block; }
+
+  /* 关系人可点 */
+  .person-link { background: none; border: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; border-bottom: 1px dashed var(--rule); }
+  .person-link:hover { color: var(--seal); border-bottom-color: var(--seal); background: none; }
+  #person-overlay .modal { max-width: 560px; }
+  #person-overlay .p-sum { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 14px; font-family: ui-monospace, monospace; font-size: 13px; }
+  #person-overlay .p-sum b { font-weight: 400; }
+  #person-overlay .p-verdict { border-left: 2px solid var(--seal); padding-left: 10px; color: var(--ink-2); font-size: 13px; margin-bottom: 14px; }
+  #person-overlay table { font-size: 13px; }
 
   /* 表格 */
   .table-scroll { overflow-x: auto; }
@@ -291,7 +327,36 @@
   </section>
 
   <section>
-    <h2>关 系 人</h2>
+    <h2>看 板 <span class="hint">（点柱子看明细）</span></h2>
+    <div class="board">
+      <div class="panel wide">
+        <h3>谁欠谁</h3>
+        <p class="sub">净额 = 收到 − 送出。<strong>向右</strong>是你收得多（人情欠着你的是你），<strong>向左</strong>是你送得多（对方欠着你）。</p>
+        <div class="legend">
+          <span><i style="background:var(--in)"></i>我收得多（我欠人情）</span>
+          <span><i style="background:var(--out)"></i>我送得多（人情欠我）</span>
+        </div>
+        <div id="chart-net"></div>
+      </div>
+      <div class="panel">
+        <h3>逐年人情流水</h3>
+        <p class="sub">哪一年最破财，一眼看得出来。</p>
+        <div class="legend">
+          <span><i style="background:var(--in)"></i>收到</span>
+          <span><i style="background:var(--out)"></i>送出</span>
+        </div>
+        <div id="chart-year"></div>
+      </div>
+      <div class="panel">
+        <h3>关系板块</h3>
+        <p class="sub">按备注里的关系标签归堆，看你的人情押在哪个板块。</p>
+        <div id="chart-relation"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>关 系 人 <span class="hint">（点姓名看这个人的全部往来）</span></h2>
     <div class="table-scroll">
       <table>
         <thead>
@@ -353,6 +418,27 @@
     复用其金额大写算法、重名检测与导出逻辑；人情往来模型与荒诞层为本项目新写。<br>
     「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品。数据只在你自己的浏览器里，不上传任何服务器。
   </footer>
+</div>
+
+<div id="tip"></div>
+
+<div class="overlay" id="person-overlay">
+  <div class="modal">
+    <h3 id="person-name"></h3>
+    <div class="p-sum" id="person-sum"></div>
+    <div class="p-verdict" id="person-verdict"></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>方向</th><th style="text-align:right">金额</th><th>事项</th><th>备注</th><th>日期</th></tr>
+        </thead>
+        <tbody id="person-rows"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" id="person-close">关闭</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="share-overlay">
@@ -688,6 +774,41 @@ const Ledger = {
     return { count: live.length, sumIn, sumOut, net: sumIn - sumOut, people: new Set(live.map((r) => r.name)).size };
   },
 
+  // 某个人的全部往来（含已作废，按日期倒序）
+  byPerson(name) {
+    return this.all()
+      .filter((r) => r.name === name)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+  },
+
+  // 逐年流水
+  byYear() {
+    const map = new Map();
+    for (const r of this.live()) {
+      const y = (r.date || "").slice(0, 4);
+      if (!y) continue;
+      if (!map.has(y)) map.set(y, { year: y, in: 0, out: 0 });
+      map.get(y)[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
+    }
+    return [...map.values()].sort((a, b) => (a.year < b.year ? -1 : 1));
+  },
+
+  // 关系板块：从备注里认关系标签（内置 + 自定义），认不出算「未分类」
+  byRelation() {
+    const words = [...this.tags("relation").builtin, ...this.tags("relation").custom];
+    const map = new Map();
+    for (const r of this.live()) {
+      const hit = words.find((w) => (r.note || "").includes(w)) || "未分类";
+      if (!map.has(hit)) map.set(hit, { name: hit, in: 0, out: 0, total: 0, count: 0 });
+      const b = map.get(hit);
+      b[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
+      b.total += Number(r.amount) || 0;
+      b.count += 1;
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  },
+
   // 关系人聚合：同一个人在所有事项下的往来汇总
   people() {
     const map = new Map();
@@ -783,6 +904,148 @@ const Absurd = {
     if (payable > receivable * 2) return "严重资不抵债：你欠的人情远多于别人欠你的。";
     if (receivable > payable * 2) return "债权人姿态：你在人情市场上过度放贷。";
     return "账面基本平衡，人情往来处于健康区间。";
+  },
+};
+
+/* ---------- Charts：零依赖手写 SVG
+ * 配色经色盲安全校验（收 = 靛蓝 / 送 = 赭石，protan ΔE 19.8）；
+ * 每根柱子都有直接标注 + hover 提示，颜色不是唯一的识别手段。
+ * -------------------------------------------------------------- */
+const Charts = {
+  IN: "var(--in)",
+  OUT: "var(--out)",
+  esc: (x) => Utils.esc(x),
+
+  // 数据端 4px 圆角、基线端方角
+  barH(x, y, w, h, dir) {
+    const r = Math.min(4, Math.abs(w));
+    if (w <= 0.5) return `<rect x="${x}" y="${y}" width="${Math.max(w, 0.5)}" height="${h}"/>`;
+    return dir === "right"
+      ? `<path d="M${x} ${y} h${w - r} a${r} ${r} 0 0 1 ${r} ${r} v${h - 2 * r} a${r} ${r} 0 0 1 ${-r} ${r} h${-(w - r)} z"/>`
+      : `<path d="M${x + w} ${y} h${-(w - r)} a${r} ${r} 0 0 0 ${-r} ${r} v${h - 2 * r} a${r} ${r} 0 0 0 ${r} ${r} h${w - r} z"/>`;
+  },
+  barV(x, y, w, h) {
+    const r = Math.min(4, w / 2, h);
+    if (h <= 0.5) return `<rect x="${x}" y="${y + h - 0.5}" width="${w}" height="0.5"/>`;
+    return `<path d="M${x} ${y + h} v${-(h - r)} a${r} ${r} 0 0 1 ${r} ${-r} h${w - 2 * r} a${r} ${r} 0 0 1 ${r} ${r} v${h - r} z"/>`;
+  },
+
+  money(n) {
+    return Utils.formatCurrency(n);
+  },
+
+  // ① 谁欠谁：发散横条，0 为中轴
+  net(elId) {
+    const el = document.getElementById(elId);
+    const people = Ledger.people().filter((p) => p.net !== 0).slice(0, 8);
+    if (!people.length) return (el.innerHTML = '<p class="none">还没有往来，无债一身轻。</p>');
+
+    const rowH = 26, gap = 8, padT = 16, padB = 22, gutter = 62, valW = 78;
+    const h = padT + people.length * (rowH + gap) + padB;
+    const W = 100; // viewBox 用百分比坐标，靠 preserveAspectRatio=none 会变形，所以用固定宽度
+    const width = 640, plotL = gutter, plotR = width - valW;
+    const max = Math.max(...people.map((p) => Math.abs(p.net))) || 1;
+    const LABEL_ROOM = 62; // 给条端数值标签留出的宽度
+    // 全部同号时收成单侧，不白占半张图；有正有负才用中轴发散
+    const allPos = people.every((p) => p.net > 0);
+    const allNeg = people.every((p) => p.net < 0);
+    const mid = allPos ? plotL : allNeg ? plotR : (plotL + plotR) / 2;
+    const room = allPos || allNeg ? plotR - plotL : (plotR - plotL) / 2;
+    const scale = (v) => (Math.abs(v) / max) * (room - LABEL_ROOM);
+
+    const rows = people
+      .map((p, i) => {
+        const y = padT + i * (rowH + gap);
+        const w = scale(p.net);
+        const right = p.net > 0;
+        const x = right ? mid : mid - w;
+        const color = right ? this.IN : this.OUT;
+        const tip = `${this.esc(p.name)}｜收到 ${this.money(p.in)}｜送出 ${this.money(p.out)}｜净额 ${this.money(p.net)}`;
+        return `
+        <g class="mark" data-tip="${tip}" data-person="${this.esc(p.name)}" style="cursor:pointer">
+          <text class="lbl" x="${plotL - 8}" y="${y + rowH / 2 + 4}" text-anchor="end">${this.esc(p.name)}</text>
+          <g fill="${color}">${this.barH(x, y, w, rowH, right ? "right" : "left")}</g>
+          <text class="val" x="${right ? x + w + 6 : x - 6}" y="${y + rowH / 2 + 4}" text-anchor="${right ? "start" : "end"}">${this.money(p.net)}</text>
+        </g>`;
+      })
+      .join("");
+
+    el.innerHTML = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="各关系人的人情净额">
+      <line class="zeroline" x1="${mid}" y1="${padT - 6}" x2="${mid}" y2="${h - padB + 2}"/>
+      <text class="ax" x="${mid}" y="${h - 6}" text-anchor="${allNeg ? "end" : "start"}">0</text>
+      ${allNeg ? `<text class="ax" x="${plotL}" y="${h - 6}">← 我送得多（人情欠我）</text>` : ""}
+      ${allPos ? `<text class="ax" x="${plotR}" y="${h - 6}" text-anchor="end">我收得多（我欠人情）→</text>` : ""}
+      ${!allPos && !allNeg ? `<text class="ax" x="${plotL}" y="${h - 6}">← 我送得多</text><text class="ax" x="${plotR}" y="${h - 6}" text-anchor="end">我收得多 →</text>` : ""}
+      ${rows}
+    </svg>`;
+  },
+
+  // ② 逐年流水：分组柱
+  year(elId) {
+    const el = document.getElementById(elId);
+    const years = Ledger.byYear();
+    if (!years.length) return (el.innerHTML = '<p class="none">还没有往来记录。</p>');
+
+    const width = 420, h = 220, padL = 46, padR = 10, padT = 10, padB = 30;
+    const plotW = width - padL - padR, plotH = h - padT - padB;
+    const max = Math.max(...years.flatMap((y) => [y.in, y.out])) || 1;
+    const step = plotW / years.length;
+    const bw = Math.min(18, (step - 10) / 2);
+    const yOf = (v) => padT + plotH - (v / max) * plotH;
+
+    const ticks = [0, max / 2, max]
+      .map((t) => `<g><line class="gridline" x1="${padL}" y1="${yOf(t)}" x2="${width - padR}" y2="${yOf(t)}"/>
+        <text class="ax" x="${padL - 6}" y="${yOf(t) + 3}" text-anchor="end">${t >= 1000 ? (t / 1000).toFixed(1).replace(/\.0$/, "") + "k" : Math.round(t)}</text></g>`)
+      .join("");
+
+    const bars = years
+      .map((y, i) => {
+        const cx = padL + i * step + step / 2;
+        const x1 = cx - bw - 1, x2 = cx + 1; // 两根柱之间留 2px 缝
+        const tipIn = `${y.year} 收到 ${this.money(y.in)}`;
+        const tipOut = `${y.year} 送出 ${this.money(y.out)}`;
+        return `
+        <g class="mark" data-tip="${tipIn}"><g fill="${this.IN}">${this.barV(x1, yOf(y.in), bw, padT + plotH - yOf(y.in))}</g></g>
+        <g class="mark" data-tip="${tipOut}"><g fill="${this.OUT}">${this.barV(x2, yOf(y.out), bw, padT + plotH - yOf(y.out))}</g></g>
+        <text class="ax" x="${cx}" y="${h - 10}" text-anchor="middle">${y.year}</text>`;
+      })
+      .join("");
+
+    el.innerHTML = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="逐年收到与送出金额">${ticks}
+      <line class="zeroline" x1="${padL}" y1="${padT + plotH}" x2="${width - padR}" y2="${padT + plotH}"/>${bars}</svg>`;
+  },
+
+  // ③ 关系板块：单色横条（单序列不需要图例）
+  relation(elId) {
+    const el = document.getElementById(elId);
+    const buckets = Ledger.byRelation();
+    if (!buckets.length) return (el.innerHTML = '<p class="none">还没有往来记录。</p>');
+
+    const width = 420, rowH = 22, gap = 8, padT = 6, padB = 6, gutter = 56, valW = 86;
+    const h = padT + buckets.length * (rowH + gap) + padB;
+    const max = Math.max(...buckets.map((b) => b.total)) || 1;
+    const plotW = width - gutter - valW;
+
+    const rows = buckets
+      .map((b, i) => {
+        const y = padT + i * (rowH + gap);
+        const w = (b.total / max) * plotW;
+        const tip = `${this.esc(b.name)}｜往来合计 ${this.money(b.total)}｜收 ${this.money(b.in)} / 送 ${this.money(b.out)}｜${b.count} 笔`;
+        return `<g class="mark" data-tip="${tip}">
+          <text class="lbl" x="${gutter - 8}" y="${y + rowH / 2 + 4}" text-anchor="end">${this.esc(b.name)}</text>
+          <g fill="${this.IN}">${this.barH(gutter, y, w, rowH, "right")}</g>
+          <text class="val" x="${gutter + w + 6}" y="${y + rowH / 2 + 4}">${this.money(b.total)}</text>
+        </g>`;
+      })
+      .join("");
+
+    el.innerHTML = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="各关系板块的往来合计">${rows}</svg>`;
+  },
+
+  renderAll() {
+    this.net("chart-net");
+    this.year("chart-year");
+    this.relation("chart-relation");
   },
 };
 
@@ -963,6 +1226,19 @@ const UI = {
       this.renderEventOptions();
       this.render();
     });
+    this.el("people-rows").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-person]");
+      if (btn) this.openPerson(btn.dataset.person);
+    });
+    this.el("chart-net").addEventListener("click", (e) => {
+      const g = e.target.closest("g[data-person]");
+      if (g) this.openPerson(g.dataset.person);
+    });
+    this.el("person-close").addEventListener("click", () => this.el("person-overlay").classList.remove("open"));
+    this.el("person-overlay").addEventListener("click", (e) => {
+      if (e.target === this.el("person-overlay")) this.el("person-overlay").classList.remove("open");
+    });
+    this.bindTooltip();
     this.el("confirm-cancel").addEventListener("click", () => this.closeConfirm());
     this.el("rows").addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-act]");
@@ -973,6 +1249,57 @@ const UI = {
       } else if (btn.dataset.act === "edit") {
         this.editRecord(btn.dataset.id);
       }
+    });
+  },
+
+  openPerson(name) {
+    const recs = Ledger.byPerson(name);
+    if (!recs.length) return;
+    const live = recs.filter((r) => !r.void);
+    const sumIn = live.filter((r) => r.dir === "in").reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const sumOut = live.filter((r) => r.dir === "out").reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const net = sumIn - sumOut;
+
+    this.el("person-name").textContent = name;
+    this.el("person-sum").innerHTML = [
+      `<span>收到 <b style="color:var(--in)">${Utils.formatCurrency(sumIn)}</b></span>`,
+      `<span>送出 <b style="color:var(--out)">${Utils.formatCurrency(sumOut)}</b></span>`,
+      `<span>净额 <b>${Utils.formatCurrency(net)}</b></span>`,
+      `<span>${live.length} 笔往来</span>`,
+    ].join("");
+    this.el("person-verdict").textContent =
+      net > 0
+        ? `你欠${name}的人情 ${Utils.formatCurrency(net)}。下次他家办事，这就是起步价。`
+        : net < 0
+          ? `${name}欠你的人情 ${Utils.formatCurrency(-net)}。建议保持联系，别让它变成坏账。`
+          : `两清。这段关系目前没有任何杠杆。`;
+    this.el("person-rows").innerHTML = recs
+      .map(
+        (r) => `
+      <tr class="${r.void ? "void" : ""}">
+        <td><span class="tag ${r.dir}">${DIR_LABEL[r.dir]}</span></td>
+        <td class="amount ${r.dir}">${Utils.formatCurrency(r.amount)}</td>
+        <td class="note">${Utils.esc(Ledger.eventName(r.eventId))}</td>
+        <td class="note">${Utils.esc(r.note) || "—"}</td>
+        <td class="note">${Utils.esc(r.date)}</td>
+      </tr>`
+      )
+      .join("");
+    this.el("person-overlay").classList.add("open");
+  },
+
+  bindTooltip() {
+    const tip = document.getElementById("tip");
+    document.addEventListener("mousemove", (e) => {
+      const mark = e.target.closest ? e.target.closest(".mark[data-tip]") : null;
+      if (!mark) return tip.classList.remove("on");
+      tip.textContent = mark.dataset.tip;
+      tip.classList.add("on");
+      const pad = 14;
+      const x = Math.min(e.clientX + pad, window.innerWidth - tip.offsetWidth - 8);
+      const y = Math.min(e.clientY + pad, window.innerHeight - tip.offsetHeight - 8);
+      tip.style.left = `${x}px`;
+      tip.style.top = `${y}px`;
     });
   },
 
@@ -1082,6 +1409,7 @@ const UI = {
     this.el("s-net").textContent = Utils.formatCurrency(s.net);
 
     this.renderAbsurd();
+    Charts.renderAll();
     this.renderPeople();
     this.renderRows();
   },
@@ -1109,7 +1437,7 @@ const UI = {
       .map(
         (p) => `
       <tr>
-        <td>${Utils.esc(p.name)}</td>
+        <td><button type="button" class="person-link" data-person="${Utils.esc(p.name)}">${Utils.esc(p.name)}</button></td>
         <td class="amount in">${Utils.formatCurrency(p.in)}</td>
         <td class="amount out">${Utils.formatCurrency(p.out)}</td>
         <td class="amount">${Utils.formatCurrency(p.net)}</td>
