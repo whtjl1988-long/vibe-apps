@@ -145,6 +145,31 @@
   .metric .foot { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
   .absurd-note { padding: 10px 16px; font-size: 11px; color: var(--ink-3); }
 
+  /* 筛选行 / 排序 / 翻页 */
+  .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .filters input[type="search"], .filters select {
+    font-family: inherit; font-size: 13px; color: var(--ink);
+    background: var(--paper-2); border: 1px solid var(--rule); padding: 5px 8px; outline: none; border-radius: 0;
+  }
+  .filters input[type="search"] { width: 160px; }
+  .filters input:focus, .filters select:focus { border-color: var(--seal); }
+  .filters .count { font-size: 11px; color: var(--ink-3); font-family: ui-monospace, monospace; margin-left: auto; }
+  .sort-th {
+    font: inherit; color: inherit; background: none; border: none; padding: 0;
+    cursor: pointer; letter-spacing: inherit; border-bottom: 1px dashed transparent;
+  }
+  .sort-th:hover { color: var(--seal); background: none; border-bottom-color: var(--seal); }
+  .sort-th.on { color: var(--ink); }
+  .sort-th.on::after { content: attr(data-arrow); margin-left: 3px; }
+  .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; font-size: 12px; color: var(--ink-3); }
+  .pager button {
+    font-family: ui-monospace, monospace; font-size: 12px; padding: 3px 10px;
+    background: transparent; color: var(--ink-2); border: 1px solid var(--rule); letter-spacing: 0;
+  }
+  .pager button:hover:not(:disabled) { background: var(--seal); color: var(--paper-2); border-color: var(--seal); }
+  .pager button:disabled { opacity: 0.35; cursor: default; }
+  .pager .pos { font-family: ui-monospace, monospace; }
+
   /* 关系人可点 */
   .person-link { background: none; border: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; border-bottom: 1px dashed var(--rule); }
   .person-link:hover { color: var(--seal); border-bottom-color: var(--seal); background: none; }
@@ -303,41 +328,51 @@
 
   <section>
     <h2>关 系 人 <span class="hint">（点姓名看这个人的全部往来）</span></h2>
+    <div class="filters">
+      <input type="search" id="people-q" placeholder="搜姓名" autocomplete="off">
+      <span class="count" id="people-count"></span>
+    </div>
     <div class="table-scroll">
       <table>
         <thead>
           <tr>
-            <th>姓名</th>
-            <th style="text-align:right">收到</th>
-            <th style="text-align:right">送出</th>
-            <th style="text-align:right">净额</th>
-            <th style="text-align:right">笔数</th>
-            <th>最近往来</th>
+            <th><button type="button" class="sort-th" data-tb="people" data-sk="name">姓名</button></th>
+            <th style="text-align:right"><button type="button" class="sort-th" data-tb="people" data-sk="in">收到</button></th>
+            <th style="text-align:right"><button type="button" class="sort-th" data-tb="people" data-sk="out">送出</button></th>
+            <th style="text-align:right"><button type="button" class="sort-th" data-tb="people" data-sk="net">净额</button></th>
+            <th style="text-align:right"><button type="button" class="sort-th" data-tb="people" data-sk="count">笔数</button></th>
+            <th><button type="button" class="sort-th" data-tb="people" data-sk="last">最近往来</button></th>
           </tr>
         </thead>
         <tbody id="people-rows"></tbody>
       </table>
     </div>
     <div class="empty" id="people-empty">还没有关系人。清白。</div>
+    <div class="pager" id="people-pager"></div>
   </section>
 
   <section>
-    <h2>明 细
-      <span class="hint">
-        <label for="f-filter" style="letter-spacing:0.04em">按事项筛选</label>
-        <select id="f-filter" style="font-size:12px"></select>
-      </span>
-    </h2>
+    <h2>明 细</h2>
+    <div class="filters">
+      <input type="search" id="rows-q" placeholder="搜姓名或备注" autocomplete="off">
+      <select id="f-filter" aria-label="按事项筛选"></select>
+      <select id="rows-dir" aria-label="按方向筛选">
+        <option value="all">收送不限</option>
+        <option value="in">只看收到</option>
+        <option value="out">只看送出</option>
+      </select>
+      <span class="count" id="rows-count"></span>
+    </div>
     <div class="table-scroll">
       <table>
         <thead>
           <tr>
-            <th>方向</th>
-            <th>姓名</th>
-            <th style="text-align:right">金额</th>
-            <th>事项</th>
-            <th>备注</th>
-            <th>日期</th>
+            <th><button type="button" class="sort-th" data-tb="rows" data-sk="dir">方向</button></th>
+            <th><button type="button" class="sort-th" data-tb="rows" data-sk="name">姓名</button></th>
+            <th style="text-align:right"><button type="button" class="sort-th" data-tb="rows" data-sk="amount">金额</button></th>
+            <th><button type="button" class="sort-th" data-tb="rows" data-sk="event">事项</button></th>
+            <th><button type="button" class="sort-th" data-tb="rows" data-sk="note">备注</button></th>
+            <th><button type="button" class="sort-th" data-tb="rows" data-sk="date">日期</button></th>
             <th></th>
           </tr>
         </thead>
@@ -345,6 +380,7 @@
       </table>
     </div>
     <div class="empty" id="empty">账本还是空的。人情债尚未产生，恭喜。</div>
+    <div class="pager" id="rows-pager"></div>
   </section>
 
   <section>
@@ -737,9 +773,7 @@ const Ledger = {
       p.count += 1;
       if (!p.last || (r.date || "") > p.last) p.last = r.date || "";
     }
-    return [...map.values()]
-      .map((p) => ({ ...p, net: p.in - p.out }))
-      .sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.in + b.out - (a.in + a.out));
+    return [...map.values()].map((p) => ({ ...p, net: p.in - p.out, total: p.in + p.out }));
   },
 };
 
@@ -916,9 +950,14 @@ const DIR_HINT = {
   out: "我随出去的——记在应收一侧。",
 };
 
+const PAGE_SIZE = 10; // 一页 10 条，多了翻页
+
 const UI = {
   dir: "in",
   filter: "all",
+  // 两张表各自的排序 / 翻页 / 搜索状态
+  people: { sort: "total", asc: false, page: 1, q: "" },
+  rows: { sort: "date", asc: false, page: 1, q: "", dir: "all" },
 
   el(id) {
     return document.getElementById(id);
@@ -983,7 +1022,37 @@ const UI = {
     });
     this.el("f-filter").addEventListener("change", (e) => {
       this.filter = e.target.value;
-      this.render();
+      this.rows.page = 1;
+      this.renderRows();
+    });
+    this.el("rows-dir").addEventListener("change", (e) => {
+      this.rows.dir = e.target.value;
+      this.rows.page = 1;
+      this.renderRows();
+    });
+    this.el("rows-q").addEventListener("input", (e) => {
+      this.rows.q = e.target.value;
+      this.rows.page = 1;
+      this.renderRows();
+    });
+    this.el("people-q").addEventListener("input", (e) => {
+      this.people.q = e.target.value;
+      this.people.page = 1;
+      this.renderPeople();
+    });
+    document.querySelectorAll(".sort-th").forEach((btn) => {
+      btn.addEventListener("click", () => this.clickSort(btn));
+    });
+    [["people-pager", "people"], ["rows-pager", "rows"]].forEach(([elId, key]) => {
+      this.el(elId).addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-pg]");
+        if (!btn) return;
+        const st = this[key];
+        const pages = Math.max(1, Math.ceil((key === "people" ? Ledger.people().length : Ledger.all().length) / PAGE_SIZE));
+        const go = { first: 1, prev: st.page - 1, next: st.page + 1, last: 99999 }[btn.dataset.pg];
+        st.page = Math.min(Math.max(1, go), 99999);
+        key === "people" ? this.renderPeople() : this.renderRows();
+      });
     });
     this.el("btn-xlsx").addEventListener("click", () => Exporter.xlsx());
     this.el("btn-json").addEventListener("click", () => Exporter.json());
@@ -1056,6 +1125,76 @@ const UI = {
       )
       .join("");
     this.el("person-overlay").classList.add("open");
+  },
+
+  // 中文按拼音比，数字按大小比
+  cmp(key, a, b) {
+    const txt = (x) => String(x ?? "");
+    const zh = (x, y) => txt(x).localeCompare(txt(y), "zh");
+    switch (key) {
+      case "name": return zh(a.name, b.name);
+      case "in": return a.in - b.in;
+      case "out": return a.out - b.out;
+      case "net": return a.net - b.net;
+      case "total": return a.total - b.total;
+      case "count": return a.count - b.count;
+      case "last": return txt(a.last).localeCompare(txt(b.last));
+      case "dir": return zh(DIR_LABEL[a.dir], DIR_LABEL[b.dir]);
+      case "amount": return (Number(a.amount) || 0) - (Number(b.amount) || 0);
+      case "event": return zh(Ledger.eventName(a.eventId), Ledger.eventName(b.eventId));
+      case "note": return zh(a.note, b.note);
+      case "date": return txt(a.date).localeCompare(txt(b.date));
+      default: return 0;
+    }
+  },
+
+  // 方向做进比较器，并列项按录入顺序（数组本身是新的在前）——
+  // 否则整体 reverse 会把同一天的多笔翻过来，现场连录几十笔时最新一笔会沉到底。
+  sortList(list, state) {
+    const dir = state.asc ? 1 : -1;
+    return list
+      .map((item, i) => ({ item, i }))
+      .sort((a, b) => this.cmp(state.sort, a.item, b.item) * dir || a.i - b.i)
+      .map((x) => x.item);
+  },
+
+  paginate(list, state) {
+    const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    state.page = Math.min(Math.max(1, state.page), pages);
+    const from = (state.page - 1) * PAGE_SIZE;
+    return { slice: list.slice(from, from + PAGE_SIZE), pages, total: list.length, from };
+  },
+
+  renderPager(elId, key, info) {
+    const state = this[key];
+    const el = this.el(elId);
+    if (info.total <= PAGE_SIZE) return (el.innerHTML = "");
+    el.innerHTML = `
+      <button type="button" data-pg="first" ${state.page === 1 ? "disabled" : ""}>«</button>
+      <button type="button" data-pg="prev" ${state.page === 1 ? "disabled" : ""}>上一页</button>
+      <span class="pos">第 ${state.page} / ${info.pages} 页</span>
+      <button type="button" data-pg="next" ${state.page === info.pages ? "disabled" : ""}>下一页</button>
+      <button type="button" data-pg="last" ${state.page === info.pages ? "disabled" : ""}>»</button>`;
+  },
+
+  markSortHeaders(tb, state) {
+    document.querySelectorAll(`.sort-th[data-tb="${tb}"]`).forEach((b) => {
+      const on = b.dataset.sk === state.sort;
+      b.classList.toggle("on", on);
+      b.dataset.arrow = on ? (state.asc ? "↑" : "↓") : "";
+    });
+  },
+
+  clickSort(btn) {
+    const tb = btn.dataset.tb;
+    const state = this[tb];
+    if (state.sort === btn.dataset.sk) state.asc = !state.asc;
+    else {
+      state.sort = btn.dataset.sk;
+      state.asc = ["name", "dir", "event", "note"].includes(state.sort); // 文本列默认正序
+    }
+    state.page = 1;
+    tb === "people" ? this.renderPeople() : this.renderRows();
   },
 
   appendNote(word) {
@@ -1185,9 +1324,19 @@ const UI = {
   },
 
   renderPeople() {
-    const people = Ledger.people();
-    this.el("people-empty").style.display = people.length ? "none" : "block";
-    this.el("people-rows").innerHTML = people
+    const st = this.people;
+    const q = st.q.trim();
+    const all = Ledger.people().filter((p) => !q || p.name.includes(q));
+    const list = this.sortList(all, st);
+    const info = this.paginate(list, st);
+
+    this.markSortHeaders("people", st);
+    this.el("people-count").textContent = q
+      ? `${info.total} 人（共 ${Ledger.people().length} 人）`
+      : `${info.total} 人`;
+    this.el("people-empty").style.display = info.total ? "none" : "block";
+    this.el("people-empty").textContent = q ? "没有匹配的关系人。" : "还没有关系人。清白。";
+    this.el("people-rows").innerHTML = info.slice
       .map(
         (p) => `
       <tr>
@@ -1200,12 +1349,27 @@ const UI = {
       </tr>`
       )
       .join("");
+    this.renderPager("people-pager", "people", info);
   },
 
   renderRows() {
-    const records = Ledger.all().filter((r) => this.filter === "all" || r.eventId === this.filter);
-    this.el("empty").style.display = records.length ? "none" : "block";
-    this.el("rows").innerHTML = records
+    const st = this.rows;
+    const q = st.q.trim();
+    const all = Ledger.all()
+      .filter((r) => this.filter === "all" || r.eventId === this.filter)
+      .filter((r) => st.dir === "all" || r.dir === st.dir)
+      .filter((r) => !q || (r.name || "").includes(q) || (r.note || "").includes(q));
+    const list = this.sortList(all, st);
+    const info = this.paginate(list, st);
+
+    this.markSortHeaders("rows", st);
+    const totalAll = Ledger.all().length;
+    this.el("rows-count").textContent =
+      info.total === totalAll ? `${info.total} 笔` : `${info.total} 笔（共 ${totalAll} 笔）`;
+    this.el("empty").style.display = info.total ? "none" : "block";
+    this.el("empty").textContent =
+      totalAll === 0 ? "账本还是空的。人情债尚未产生，恭喜。" : "没有符合条件的记录。";
+    this.el("rows").innerHTML = info.slice
       .map(
         (r) => `
       <tr class="${r.void ? "void" : ""}">
@@ -1224,6 +1388,7 @@ const UI = {
       </tr>`
       )
       .join("");
+    this.renderPager("rows-pager", "rows", info);
   },
 };
 
