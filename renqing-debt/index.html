@@ -191,6 +191,7 @@
     <div class="title-row">
       <h1>人情债管理系统</h1>
       <span class="stamp">RENQING DEBT</span>
+      <span class="stamp" id="mode-badge"></span>
     </div>
     <p>一本正经地给人情往来记账。本系统不提供任何法律、财务或情感建议。</p>
   </header>
@@ -309,6 +310,7 @@
       <button class="ghost" id="btn-json">导出数据文件</button>
       <button class="ghost" id="btn-import">导入数据文件</button>
       <input type="file" id="file-json" accept="application/json,.json" hidden>
+      <button class="ghost" id="btn-reset" hidden>重置为演示数据</button>
       <span class="mode-note" id="mode-note"></span>
     </div>
   </section>
@@ -393,6 +395,9 @@ const Utils = {
   esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   },
+  clone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  },
   yearsSince(dateStr) {
     const t = Date.parse(dateStr);
     if (isNaN(t)) return 0;
@@ -400,10 +405,34 @@ const Utils = {
   },
 };
 
-/* ---------- Store：持久化（自托管态） ---------- */
+/* ---------- Mode：形态判断
+ * file://          → 自托管态：持久化存储，空账本起步
+ * http(s)://       → 试玩态：内存存储 + 预置演示账本，刷新即还原
+ * ?mode=local|demo → 显式覆盖（供自动化测试与愿意折腾的粉丝）
+ * 注意：按协议判断而不是按 hostname——站点 e2e 跑在 localhost 上，
+ *      用 hostname 判断会导致测试永远走进自托管态，测不到线上真实行为。
+ * -------------------------------------------------------------- */
+const Mode = {
+  resolve() {
+    let override = "";
+    try {
+      override = new URLSearchParams(location.search).get("mode") || "";
+    } catch (e) {
+      override = "";
+    }
+    if (override === "local" || override === "demo") return override;
+    return location.protocol === "file:" ? "local" : "demo";
+  },
+};
+const MODE = Mode.resolve();
+const IS_DEMO = MODE === "demo";
+
+/* ---------- Store：两套后端，按形态切换 ---------- */
 const STORAGE_KEY = "renqing-debt/v1";
 const Store = {
+  _memory: null,
   read() {
+    if (IS_DEMO) return this._memory;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
@@ -414,12 +443,52 @@ const Store = {
     }
   },
   write(state) {
+    if (IS_DEMO) {
+      // 试玩态：只活在内存里，刷新即还原（录屏重拍不必清缓存）
+      this._memory = state;
+      return;
+    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
       /* 存储不可用（隐私模式等）时静默降级为内存态，不打断使用 */
     }
   },
+  clear() {
+    this._memory = null;
+    if (!IS_DEMO) {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {}
+    }
+  },
+};
+
+/* ---------- 演示账本：试玩态的预置数据
+ * 这份数据是设计过的：二舅当年随我 200，如今我还他 2000；
+ * 表哥和小学同学的钱送出去多年没有下文，直接落进坏账。
+ * 录屏演示时对着它念，数字本身就是台词。
+ * -------------------------------------------------------------- */
+const DEMO_DATA = {
+  version: 2,
+  events: [
+    { id: "e-default", name: "日常往来", date: "" },
+    { id: "e-wedding", name: "我结婚（2021）", date: "2021-10-03" },
+    { id: "e-eryi", name: "二舅家娶媳妇", date: "2026-08-20" },
+  ],
+  records: [
+    { id: "d01", dir: "out", eventId: "e-eryi", name: "二舅", amount: 2000, note: "娶媳妇，随大份", date: "2026-08-20", void: false, createdAt: "2026-08-20 11:20", history: [] },
+    { id: "d02", dir: "out", eventId: "e-default", name: "老李", amount: 600, note: "乔迁新居", date: "2026-03-12", void: false, createdAt: "2026-03-12 19:40", history: [] },
+    { id: "d03", dir: "out", eventId: "e-default", name: "领导", amount: 800, note: "女儿升学宴", date: "2025-09-06", void: false, createdAt: "2025-09-06 12:05", history: [] },
+    { id: "d04", dir: "out", eventId: "e-default", name: "阿强", amount: 1000, note: "二胎满月", date: "2023-05-21", void: false, createdAt: "2023-05-21 09:15", history: [] },
+    { id: "d05", dir: "out", eventId: "e-default", name: "王小雅", amount: 500, note: "同学结婚，此后再无音讯", date: "2018-12-08", void: false, createdAt: "2018-12-08 17:30", history: [] },
+    { id: "d06", dir: "out", eventId: "e-default", name: "远房表哥", amount: 800, note: "表哥结婚，只见过这一面", date: "2019-06-16", void: false, createdAt: "2019-06-16 15:00", history: [] },
+    { id: "d07", dir: "in", eventId: "e-wedding", name: "二舅", amount: 200, note: "我结婚，二舅随的", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:10", history: [] },
+    { id: "d08", dir: "in", eventId: "e-wedding", name: "阿强", amount: 1000, note: "发小，随得最实在", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:12", history: [] },
+    { id: "d09", dir: "in", eventId: "e-wedding", name: "领导", amount: 500, note: "领导随的，不好不还", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:14", history: [] },
+    { id: "d10", dir: "in", eventId: "e-wedding", name: "老李", amount: 300, note: "当时还是同事", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:16", history: [] },
+    { id: "d11", dir: "in", eventId: "e-wedding", name: "王小雅", amount: 200, note: "小学同学，来了就好", date: "2021-10-03", void: false, createdAt: "2021-10-03 10:18", history: [] },
+  ],
 };
 
 /* ---------- Ledger：账本模型（事项 + 方向 + 软删除 + 修改留痕） ---------- */
@@ -723,9 +792,14 @@ const UI = {
   },
 
   init() {
-    Ledger.load();
+    // 试玩态：每次加载都从演示账本重新起步（刷新即还原）
+    Ledger.load(IS_DEMO ? Utils.clone(DEMO_DATA) : null);
     this.el("f-date").value = Utils.today();
-    this.el("mode-note").textContent = "自托管态：数据存在这台设备的浏览器里";
+    this.el("mode-badge").textContent = IS_DEMO ? "试玩态" : "自托管态";
+    this.el("mode-note").textContent = IS_DEMO
+      ? "试玩态：随便改，关掉或刷新即还原，什么都不会留下"
+      : "自托管态：数据存在这台设备的浏览器里";
+    this.el("btn-reset").hidden = !IS_DEMO;
     this.bind();
     this.renderEventOptions();
     this.render();
@@ -771,6 +845,13 @@ const UI = {
       const f = e.target.files && e.target.files[0];
       if (f) Exporter.importFile(f);
       e.target.value = "";
+    });
+    this.el("btn-reset").addEventListener("click", () => {
+      Store.clear();
+      Ledger.load(Utils.clone(DEMO_DATA));
+      this.filter = "all";
+      this.renderEventOptions();
+      this.render();
     });
     this.el("confirm-cancel").addEventListener("click", () => this.closeConfirm());
     this.el("rows").addEventListener("click", (e) => {
