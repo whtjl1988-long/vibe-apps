@@ -196,7 +196,7 @@
   .tag.in { color: var(--in); }
   .tag.out { color: var(--out); }
   .note { color: var(--ink-3); font-size: 12px; }
-  .trace { color: var(--seal); font-size: 11px; font-family: ui-monospace, monospace; }
+  td.trace { color: var(--seal); font-size: 11px; font-family: ui-monospace, monospace; text-align: right; white-space: nowrap; }
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
   .empty { padding: 40px 0; text-align: center; color: var(--ink-3); font-size: 14px; }
 
@@ -373,6 +373,7 @@
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="event">事项</button></th>
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="note">备注</button></th>
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="date">日期</button></th>
+            <th style="text-align:right"><button type="button" class="sort-th" data-tb="rows" data-sk="edits">改动</button></th>
             <th></th>
           </tr>
         </thead>
@@ -503,6 +504,10 @@ const Utils = {
   },
   esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  },
+  // 只数字段修改，作废/恢复不算「改动」——两者性质不同，混在一起看不出金额是否被动过
+  edits(rec) {
+    return (rec.history || []).filter((h) => h.field !== "void").length;
   },
   clone(obj) {
     return JSON.parse(JSON.stringify(obj));
@@ -1144,6 +1149,7 @@ const UI = {
       case "event": return zh(Ledger.eventName(a.eventId), Ledger.eventName(b.eventId));
       case "note": return zh(a.note, b.note);
       case "date": return txt(a.date).localeCompare(txt(b.date));
+      case "edits": return Utils.edits(a) - Utils.edits(b);
       default: return 0;
     }
   },
@@ -1374,11 +1380,12 @@ const UI = {
         (r) => `
       <tr class="${r.void ? "void" : ""}">
         <td><span class="tag ${r.dir}">${DIR_LABEL[r.dir]}</span></td>
-        <td>${Utils.esc(r.name)}${r.history.length ? `<div class="trace">改过 ${r.history.length} 次</div>` : ""}</td>
+        <td>${Utils.esc(r.name)}</td>
         <td class="amount ${r.dir}">${Utils.formatCurrency(r.amount)}</td>
         <td class="note">${Utils.esc(Ledger.eventName(r.eventId))}</td>
         <td>${Utils.esc(r.note) || '<span class="note">—</span>'}</td>
         <td class="note">${Utils.esc(r.date)}</td>
+        <td class="trace">${Utils.edits(r) ? `${Utils.edits(r)} 次` : '<span class="note">—</span>'}</td>
         <td>
           <div class="row-actions">
             <button class="ghost mini" data-act="edit" data-id="${r.id}">改</button>
