@@ -2041,8 +2041,10 @@ const Speech = {
   },
   say(dir, name, amount) {
     if (!this.available()) return alert("这台设备不支持语音播报。");
+    // 收礼是办事现场唱礼：报完礼金要请人入席；送出是我随出去的，没有"里边请"这回事
     const verb = dir === "out" ? "回礼" : "贺礼";
-    const text = `${name} ${verb} ${Utils.amountToChinese(amount)}`;
+    const usher = dir === "out" ? "" : "，贵宾一位，里边请";
+    const text = `${name} ${verb} ${Utils.amountToChinese(amount)}${usher}`;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     const zh = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith("zh"));
