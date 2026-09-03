@@ -166,3 +166,34 @@ test("存不上时明确说出来，而且提示不会自己消失", async ({ br
   await expect(status).toBeVisible();
   await ctx.close();
 });
+
+// debounce 那 400 毫秒是个丢数据的窗口：记完马上切走或关掉页面，
+// UI 明明显示笔数 +1，云端却什么都没收到。这条把窗口钉死。
+// 关键是让 pagehide 发生在 debounce **之前**——所以点击和派发放在同一次
+// evaluate 里同步执行，否则测的就只是 debounce 自己完成了。
+test("记一笔后立刻关页面，那一笔也不会丢", async ({ browser }) => {
+  const ctx = await withEmptyLedger(browser);
+  const page = await ctx.newPage();
+  await page.goto("/");
+  await page.fill("#f-name", "关得快");
+  await page.fill("#f-amount", "700");
+
+  await page.evaluate(() => {
+    document.getElementById("btn-add").click();
+    window.dispatchEvent(new Event("pagehide")); // 同步，debounce 还没到
+  });
+  // 立刻关掉页面：debounce 的 timer 随页面上下文一起消失，
+  // 于是只有 keepalive 那次请求能把这一笔送出去。
+  // （等一会儿再关的话，debounce 自己就完成了，这条测试就测不到 flushNow——
+  //   这正是它第一版的毛病，被变异测试抓了出来。）
+  await page.close();
+  await ctx.close();
+  await new Promise((r) => setTimeout(r, 900)); // 等 keepalive 落地
+
+  const check = await authed(browser);
+  const res = await check.request.get(APP + "/api/ledger");
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(body.records.map((r: any) => r.name)).toContain("关得快");
+  await check.close();
+});

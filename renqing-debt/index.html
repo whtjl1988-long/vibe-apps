@@ -499,7 +499,6 @@
     background: var(--tile-dark); color: var(--body-on-dark);
     font: 600 13px/1.3 var(--font); letter-spacing: -0.08px;
   }
-  #cloud-status[data-state="failed"] { background: #c0392b; }
 
   /* id 选择器的 display 会压过 [hidden] 的默认 display:none——
      不写这一行，一个「隐藏」的全屏遮罩照样拦住所有点击 */
@@ -509,7 +508,7 @@
   #cloud-block {
     position: fixed; inset: 0; z-index: 200;
     display: grid; place-items: center; padding: 24px;
-    background: rgba(245,245,247,.94); backdrop-filter: blur(8px);
+    background: var(--parchment);
   }
   #cloud-block .box {
     max-width: 30em; background: var(--canvas);
@@ -517,8 +516,8 @@
     padding: 28px; text-align: left;
   }
   #cloud-block h2 { margin: 0 0 8px; }
-  #cloud-block p { margin: 0 0 12px; color: var(--ink-48, #6e6e73); }
-  #cloud-block .why { font: 400 13px/1.5 var(--mono, ui-monospace, monospace); color: #c0392b; }
+  #cloud-block p { margin: 0 0 12px; color: var(--ink-48); }
+  #cloud-block .why { font: 400 13px/1.5 var(--font); color: var(--ink); }
   #cloud-block button {
     margin-top: 4px; padding: 10px 20px; border: 0; border-radius: var(--r-md);
     background: var(--primary); color: #fff; font: 600 15px var(--font); cursor: pointer;
@@ -1005,6 +1004,7 @@ const Cloud = {
   _timer: null,
   _busy: false,
   _dirty: false,
+  _pending: false, // 有改动还没成功推上去
   onStatus: null, // (state, detail) → void，UI 接管
 
   /** 拉一次。204 表示还没有账本（空账本起步），不是错误。 */
@@ -1017,7 +1017,32 @@ const Cloud = {
 
   push() {
     clearTimeout(this._timer);
+    this._pending = true;
     this._timer = setTimeout(() => this._flush(), 400);
+  },
+
+  /**
+   * 页面要走了，把还欠着的那一笔立刻推掉。
+   *
+   * 不做这件事的话，debounce 那 400 毫秒就是一个丢数据的窗口：
+   * 记完马上切走或关掉，UI 明明显示笔数 +1，云端却什么都没收到。
+   * keepalive 让请求在页面卸载之后仍然能完成。
+   */
+  flushNow() {
+    if (!this._pending) return;
+    clearTimeout(this._timer);
+    this._timer = null;
+    this._pending = false;
+    try {
+      fetch(this.endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Ledger.state),
+        keepalive: true,
+      });
+    } catch (e) {
+      /* 页面正在消失，没有能报给谁的地方了 */
+    }
   },
 
   async _flush() {
@@ -1034,6 +1059,7 @@ const Cloud = {
         body: JSON.stringify(Ledger.state),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
+      this._pending = false;
       this._emit("saved");
     } catch (e) {
       this._emit("failed", e);
@@ -2999,6 +3025,12 @@ const CloudBoot = {
       return false;
     }
     Cloud.onStatus = (state, detail) => this.show(state, detail);
+
+    // 页面被关掉 / 切到后台时，把 debounce 里还欠着的那一笔立刻推走
+    addEventListener("pagehide", () => Cloud.flushNow());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") Cloud.flushNow();
+    });
     return true;
   },
 
