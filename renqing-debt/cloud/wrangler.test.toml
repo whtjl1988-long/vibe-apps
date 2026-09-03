@@ -12,4 +12,4 @@ run_worker_first = true
 
 [vars]
 AUTH_USER = "test-user"
-AUTH_PASSWORD = "test-password"
+AUTH_PASSWORD = "测试:密码-123"   # 故意带中文和冒号：钉住 UTF-8 解码与「按首个冒号切」

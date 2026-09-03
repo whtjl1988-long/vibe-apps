@@ -1,4 +1,4 @@
-# 云端形态的 Worker 配置模板。
+# 云端版（自托管态的一种）的 Worker 配置模板。
 # 用法：复制成 wrangler.toml，填自己的值。wrangler.toml 不进仓库（见 .gitignore），
 # 因为里面是你自己的 Worker 名和资源 id。
 

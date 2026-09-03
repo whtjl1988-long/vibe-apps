@@ -1,7 +1,7 @@
 {
   "name": "renqing-debt-cloud",
   "private": true,
-  "description": "云端形态：给自托管的人加一道登录墙，把数据放到自己的云上",
+  "description": "云端版：自托管态的一种——自己部署到云上，前面挡一道用户名密码",
   "scripts": {
     "dev": "wrangler dev",
     "test": "playwright test",
