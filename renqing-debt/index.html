@@ -34,6 +34,9 @@
     /* 语义：设计系统只有一个强调色，所以方向靠「标签文字 + 正负号」识别，颜色只做辅助 */
     --in: #0066cc;
     --out: #333333;
+    /* 图表是大面积填充，比文字浅一档；近黑当填充在白卡上太重、发脏 */
+    --chart-in: #0066cc;
+    --chart-out: #7a7a7a;
     /* 圆角 */
     --r-sm: 8px;
     --r-md: 11px;
@@ -188,6 +191,48 @@
   .metric .foot { font-size: 12px; letter-spacing: -0.12px; line-height: 1.4; color: var(--body-muted); }
   .absurd-note { padding: 17px 32px 24px; font-size: 12px; letter-spacing: -0.12px; color: var(--body-muted); background: var(--tile-dark-2); }
 
+  /* 页签导航 */
+  .tabs {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin: 0 0 24px; padding-bottom: 4px;
+  }
+  .tab {
+    font-family: inherit; font-size: 14px; letter-spacing: -0.224px; line-height: 1.29; cursor: pointer;
+    padding: 11px 20px; background: var(--canvas); color: var(--ink);
+    border: 1px solid var(--hairline); border-radius: var(--r-pill);
+    transition: transform 0.12s ease;
+  }
+  .tab:hover { border-color: var(--primary); color: var(--primary); }
+  .tab:active { transform: scale(0.95); }
+  .tab[aria-selected="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  .view { display: none; }
+  .view.on { display: block; }
+
+  /* 看板 */
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 17px; }
+  .panel { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 24px; min-width: 0; }
+  .panel.wide { grid-column: 1 / -1; }
+  .panel h3 { font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing: 0.231px; margin-bottom: 4px; }
+  .panel .sub { font-size: 14px; letter-spacing: -0.224px; color: var(--ink-48); margin-bottom: 17px; }
+  .legend { display: flex; gap: 17px; font-size: 12px; letter-spacing: -0.12px; color: var(--ink-80); margin-bottom: 12px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .panel svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .panel .none { font-size: 14px; color: var(--ink-48); padding: 24px 0; }
+  .ax { font-size: 11px; fill: var(--ink-48); }
+  .lbl { font-size: 12px; fill: var(--ink-80); }
+  .val { font-size: 12px; fill: var(--ink-80); font-variant-numeric: tabular-nums; }
+  .gridline { stroke: var(--divider-soft); stroke-width: 1; }
+  .zeroline { stroke: var(--hairline); stroke-width: 1; }
+  .mark { cursor: default; }
+  .mark:hover { opacity: 0.82; }
+  #tip {
+    position: fixed; z-index: 60; pointer-events: none; display: none;
+    background: var(--ink); color: #fff; font-size: 12px; letter-spacing: -0.12px; line-height: 1.5;
+    padding: 8px 12px; max-width: 240px; border-radius: var(--r-sm);
+  }
+  #tip.on { display: block; }
+
   /* 筛选行 */
   .filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 17px; }
   .filters input[type="search"] { width: 200px; }
@@ -302,6 +347,9 @@
     .stat:nth-child(-n+2) { border-bottom: 1px solid var(--divider-soft); }
     .stat .v { font-size: 28px; }
     .absurd-grid { grid-template-columns: 1fr; }
+    .board { grid-template-columns: 1fr; }
+    .tabs { gap: 6px; }
+    .tab { padding: 9px 14px; }
     .absurd-head, .metric, .absurd-note { padding-left: 24px; padding-right: 24px; }
     .filters input[type="search"] { width: 100%; }
     .filters .count { margin-left: 0; }
@@ -366,6 +414,14 @@
     </div>
   </section>
 
+  <nav class="tabs" role="tablist" aria-label="视图">
+    <button type="button" class="tab" role="tab" data-view="overview">总览</button>
+    <button type="button" class="tab" role="tab" data-view="rows">明细</button>
+    <button type="button" class="tab" role="tab" data-view="people">关系人</button>
+    <button type="button" class="tab" role="tab" data-view="faq">FAQ</button>
+  </nav>
+
+  <div class="view" id="view-overview">
   <section>
     <h2>总账</h2>
     <div class="stats">
@@ -388,6 +444,38 @@
     </div>
   </section>
 
+  <section>
+    <h2>看板 <span class="hint">（点柱子看明细）</span></h2>
+    <div class="board">
+      <div class="panel wide">
+        <h3>谁欠谁</h3>
+        <p class="sub">净额 = 收到 − 送出。<strong>向右</strong>是你收得多（人情欠着你的是你），<strong>向左</strong>是你送得多（对方欠着你）。</p>
+        <div class="legend">
+          <span><i style="background:var(--chart-in)"></i>我收得多（我欠人情）</span>
+          <span><i style="background:var(--chart-out)"></i>我送得多（人情欠我）</span>
+        </div>
+        <div id="chart-net"></div>
+      </div>
+      <div class="panel">
+        <h3>逐年人情流水</h3>
+        <p class="sub">哪一年最破财，一眼看得出来。</p>
+        <div class="legend">
+          <span><i style="background:var(--chart-in)"></i>收到</span>
+          <span><i style="background:var(--chart-out)"></i>送出</span>
+        </div>
+        <div id="chart-year"></div>
+      </div>
+      <div class="panel">
+        <h3>关系板块</h3>
+        <p class="sub">按备注里的关系标签归堆，看你的人情押在哪个板块。</p>
+        <div id="chart-relation"></div>
+      </div>
+    </div>
+  </section>
+
+  </div>
+
+  <div class="view" id="view-people">
   <section>
     <h2>关系人 <span class="hint">（点姓名看这个人的全部往来）</span></h2>
     <div class="filters">
@@ -413,6 +501,9 @@
     <div class="pager" id="people-pager"></div>
   </section>
 
+  </div>
+
+  <div class="view" id="view-rows">
   <section>
     <h2>明细</h2>
     <div class="filters">
@@ -446,6 +537,15 @@
     <div class="pager" id="rows-pager"></div>
   </section>
 
+  </div>
+
+  <div class="view" id="view-faq">
+    <section>
+      <h2>FAQ <span class="hint">（随礼常见问题，第 4 批填充内容）</span></h2>
+      <div class="card"><p class="note">内容正在整理中。</p></div>
+    </section>
+  </div>
+
   <section>
     <h2>存档</h2>
     <div class="toolbar">
@@ -464,6 +564,8 @@
     「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品。数据只在你自己的浏览器里，不上传任何服务器。
   </footer>
 </div>
+
+<div id="tip"></div>
 
 <div class="overlay" id="person-overlay">
   <div class="modal">
@@ -829,6 +931,33 @@ const Ledger = {
       .sort((a, b) => (a.date < b.date ? 1 : -1));
   },
 
+  // 逐年流水
+  byYear() {
+    const map = new Map();
+    for (const r of this.live()) {
+      const y = (r.date || "").slice(0, 4);
+      if (!y) continue;
+      if (!map.has(y)) map.set(y, { year: y, in: 0, out: 0 });
+      map.get(y)[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
+    }
+    return [...map.values()].sort((a, b) => (a.year < b.year ? -1 : 1));
+  },
+
+  // 关系板块：从备注里认关系标签（内置 + 自定义），认不出算「未分类」
+  byRelation() {
+    const words = [...this.tags("relation").builtin, ...this.tags("relation").custom];
+    const map = new Map();
+    for (const r of this.live()) {
+      const hit = words.find((w) => (r.note || "").includes(w)) || "未分类";
+      if (!map.has(hit)) map.set(hit, { name: hit, in: 0, out: 0, total: 0, count: 0 });
+      const b = map.get(hit);
+      b[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
+      b.total += Number(r.amount) || 0;
+      b.count += 1;
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total);
+  },
+
   // 关系人聚合：同一个人在所有事项下的往来汇总
   people() {
     const map = new Map();
@@ -922,6 +1051,148 @@ const Absurd = {
     if (payable > receivable * 2) return "严重资不抵债：你欠的人情远多于别人欠你的。";
     if (receivable > payable * 2) return "债权人姿态：你在人情市场上过度放贷。";
     return "账面基本平衡，人情往来处于健康区间。";
+  },
+};
+
+/* ---------- Charts：零依赖手写 SVG
+ * 配色经色盲安全校验（收 = 靛蓝 / 送 = 赭石，protan ΔE 19.8）；
+ * 每根柱子都有直接标注 + hover 提示，颜色不是唯一的识别手段。
+ * -------------------------------------------------------------- */
+const Charts = {
+  IN: "var(--chart-in)",  // Action Blue，与表格「收到」同源
+  OUT: "var(--chart-out)", // 弱墨色：大面积填充比文字浅一档
+  esc: (x) => Utils.esc(x),
+
+  // 数据端 4px 圆角、基线端方角
+  barH(x, y, w, h, dir) {
+    const r = Math.min(4, Math.abs(w));
+    if (w <= 0.5) return `<rect x="${x}" y="${y}" width="${Math.max(w, 0.5)}" height="${h}"/>`;
+    return dir === "right"
+      ? `<path d="M${x} ${y} h${w - r} a${r} ${r} 0 0 1 ${r} ${r} v${h - 2 * r} a${r} ${r} 0 0 1 ${-r} ${r} h${-(w - r)} z"/>`
+      : `<path d="M${x + w} ${y} h${-(w - r)} a${r} ${r} 0 0 0 ${-r} ${r} v${h - 2 * r} a${r} ${r} 0 0 0 ${r} ${r} h${w - r} z"/>`;
+  },
+  barV(x, y, w, h) {
+    const r = Math.min(4, w / 2, h);
+    if (h <= 0.5) return `<rect x="${x}" y="${y + h - 0.5}" width="${w}" height="0.5"/>`;
+    return `<path d="M${x} ${y + h} v${-(h - r)} a${r} ${r} 0 0 1 ${r} ${-r} h${w - 2 * r} a${r} ${r} 0 0 1 ${r} ${r} v${h - r} z"/>`;
+  },
+
+  money(n) {
+    return Utils.formatCurrency(n);
+  },
+
+  // ① 谁欠谁：发散横条，0 为中轴
+  net(elId) {
+    const el = document.getElementById(elId);
+    const people = Ledger.people().filter((p) => p.net !== 0).slice(0, 8);
+    if (!people.length) return (el.innerHTML = '<p class="none">还没有往来，无债一身轻。</p>');
+
+    const rowH = 26, gap = 8, padT = 16, padB = 22, gutter = 62, valW = 78;
+    const h = padT + people.length * (rowH + gap) + padB;
+    const W = 100; // viewBox 用百分比坐标，靠 preserveAspectRatio=none 会变形，所以用固定宽度
+    const width = 640, plotL = gutter, plotR = width - valW;
+    const max = Math.max(...people.map((p) => Math.abs(p.net))) || 1;
+    const LABEL_ROOM = 62; // 给条端数值标签留出的宽度
+    // 全部同号时收成单侧，不白占半张图；有正有负才用中轴发散
+    const allPos = people.every((p) => p.net > 0);
+    const allNeg = people.every((p) => p.net < 0);
+    const mid = allPos ? plotL : allNeg ? plotR : (plotL + plotR) / 2;
+    const room = allPos || allNeg ? plotR - plotL : (plotR - plotL) / 2;
+    const scale = (v) => (Math.abs(v) / max) * (room - LABEL_ROOM);
+
+    const rows = people
+      .map((p, i) => {
+        const y = padT + i * (rowH + gap);
+        const w = scale(p.net);
+        const right = p.net > 0;
+        const x = right ? mid : mid - w;
+        const color = right ? this.IN : this.OUT;
+        const tip = `${this.esc(p.name)}｜收到 ${this.money(p.in)}｜送出 ${this.money(p.out)}｜净额 ${this.money(p.net)}`;
+        return `
+        <g class="mark" data-tip="${tip}" data-person="${this.esc(p.name)}" style="cursor:pointer">
+          <text class="lbl" x="${plotL - 8}" y="${y + rowH / 2 + 4}" text-anchor="end">${this.esc(p.name)}</text>
+          <g fill="${color}">${this.barH(x, y, w, rowH, right ? "right" : "left")}</g>
+          <text class="val" x="${right ? x + w + 6 : x - 6}" y="${y + rowH / 2 + 4}" text-anchor="${right ? "start" : "end"}">${this.money(p.net)}</text>
+        </g>`;
+      })
+      .join("");
+
+    el.innerHTML = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="各关系人的人情净额">
+      <line class="zeroline" x1="${mid}" y1="${padT - 6}" x2="${mid}" y2="${h - padB + 2}"/>
+      <text class="ax" x="${mid}" y="${h - 6}" text-anchor="${allNeg ? "end" : "start"}">0</text>
+      ${allNeg ? `<text class="ax" x="${plotL}" y="${h - 6}">← 我送得多（人情欠我）</text>` : ""}
+      ${allPos ? `<text class="ax" x="${plotR}" y="${h - 6}" text-anchor="end">我收得多（我欠人情）→</text>` : ""}
+      ${!allPos && !allNeg ? `<text class="ax" x="${plotL}" y="${h - 6}">← 我送得多</text><text class="ax" x="${plotR}" y="${h - 6}" text-anchor="end">我收得多 →</text>` : ""}
+      ${rows}
+    </svg>`;
+  },
+
+  // ② 逐年流水：分组柱
+  year(elId) {
+    const el = document.getElementById(elId);
+    const years = Ledger.byYear();
+    if (!years.length) return (el.innerHTML = '<p class="none">还没有往来记录。</p>');
+
+    const width = 420, h = 220, padL = 46, padR = 10, padT = 10, padB = 30;
+    const plotW = width - padL - padR, plotH = h - padT - padB;
+    const max = Math.max(...years.flatMap((y) => [y.in, y.out])) || 1;
+    const step = plotW / years.length;
+    const bw = Math.min(18, (step - 10) / 2);
+    const yOf = (v) => padT + plotH - (v / max) * plotH;
+
+    const ticks = [0, max / 2, max]
+      .map((t) => `<g><line class="gridline" x1="${padL}" y1="${yOf(t)}" x2="${width - padR}" y2="${yOf(t)}"/>
+        <text class="ax" x="${padL - 6}" y="${yOf(t) + 3}" text-anchor="end">${t >= 1000 ? (t / 1000).toFixed(1).replace(/\.0$/, "") + "k" : Math.round(t)}</text></g>`)
+      .join("");
+
+    const bars = years
+      .map((y, i) => {
+        const cx = padL + i * step + step / 2;
+        const x1 = cx - bw - 1, x2 = cx + 1; // 两根柱之间留 2px 缝
+        const tipIn = `${y.year} 收到 ${this.money(y.in)}`;
+        const tipOut = `${y.year} 送出 ${this.money(y.out)}`;
+        return `
+        <g class="mark" data-tip="${tipIn}"><g fill="${this.IN}">${this.barV(x1, yOf(y.in), bw, padT + plotH - yOf(y.in))}</g></g>
+        <g class="mark" data-tip="${tipOut}"><g fill="${this.OUT}">${this.barV(x2, yOf(y.out), bw, padT + plotH - yOf(y.out))}</g></g>
+        <text class="ax" x="${cx}" y="${h - 10}" text-anchor="middle">${y.year}</text>`;
+      })
+      .join("");
+
+    el.innerHTML = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="逐年收到与送出金额">${ticks}
+      <line class="zeroline" x1="${padL}" y1="${padT + plotH}" x2="${width - padR}" y2="${padT + plotH}"/>${bars}</svg>`;
+  },
+
+  // ③ 关系板块：单色横条（单序列不需要图例）
+  relation(elId) {
+    const el = document.getElementById(elId);
+    const buckets = Ledger.byRelation();
+    if (!buckets.length) return (el.innerHTML = '<p class="none">还没有往来记录。</p>');
+
+    const width = 420, rowH = 22, gap = 8, padT = 6, padB = 6, gutter = 56, valW = 86;
+    const h = padT + buckets.length * (rowH + gap) + padB;
+    const max = Math.max(...buckets.map((b) => b.total)) || 1;
+    const plotW = width - gutter - valW;
+
+    const rows = buckets
+      .map((b, i) => {
+        const y = padT + i * (rowH + gap);
+        const w = (b.total / max) * plotW;
+        const tip = `${this.esc(b.name)}｜往来合计 ${this.money(b.total)}｜收 ${this.money(b.in)} / 送 ${this.money(b.out)}｜${b.count} 笔`;
+        return `<g class="mark" data-tip="${tip}">
+          <text class="lbl" x="${gutter - 8}" y="${y + rowH / 2 + 4}" text-anchor="end">${this.esc(b.name)}</text>
+          <g fill="${this.IN}">${this.barH(gutter, y, w, rowH, "right")}</g>
+          <text class="val" x="${gutter + w + 6}" y="${y + rowH / 2 + 4}">${this.money(b.total)}</text>
+        </g>`;
+      })
+      .join("");
+
+    el.innerHTML = `<svg viewBox="0 0 ${width} ${h}" role="img" aria-label="各关系板块的往来合计">${rows}</svg>`;
+  },
+
+  renderAll() {
+    this.net("chart-net");
+    this.year("chart-year");
+    this.relation("chart-relation");
   },
 };
 
@@ -1097,7 +1368,10 @@ const DIR_HINT = {
 
 const PAGE_SIZE = 10; // 一页 10 条，多了翻页
 
+const VIEWS = ["overview", "rows", "people", "faq"];
+
 const UI = {
+  view: "overview",
   dir: "in",
   filter: "all",
   // 两张表各自的排序 / 翻页 / 搜索状态
@@ -1121,6 +1395,7 @@ const UI = {
     this.renderTags();
     this.renderEventOptions();
     this.render();
+    this.showView((location.hash || "").replace("#/", ""), false);
   },
 
   bind() {
@@ -1185,6 +1460,15 @@ const UI = {
       this.people.page = 1;
       this.renderPeople();
     });
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => this.showView(tab.dataset.view));
+    });
+    window.addEventListener("hashchange", () => this.showView((location.hash || "").replace("#/", ""), false));
+    this.el("chart-net").addEventListener("click", (e) => {
+      const g = e.target.closest("g[data-person]");
+      if (g) this.openPerson(g.dataset.person);
+    });
+    this.bindTooltip();
     document.querySelectorAll(".sort-th").forEach((btn) => {
       btn.addEventListener("click", () => this.clickSort(btn));
     });
@@ -1343,6 +1627,30 @@ const UI = {
     tb === "people" ? this.renderPeople() : this.renderRows();
   },
 
+  // 视图切换：hash 路由，便于分享与录屏跳转；试玩态刷新仍回演示数据
+  showView(name, push) {
+    this.view = VIEWS.includes(name) ? name : "overview";
+    VIEWS.forEach((v) => {
+      document.getElementById(`view-${v}`).classList.toggle("on", v === this.view);
+      const tab = document.querySelector(`.tab[data-view="${v}"]`);
+      tab.setAttribute("aria-selected", String(v === this.view));
+    });
+    if (push !== false && location.hash !== `#/${this.view}`) location.hash = `#/${this.view}`;
+  },
+
+  bindTooltip() {
+    const tip = document.getElementById("tip");
+    document.addEventListener("mousemove", (e) => {
+      const mark = e.target.closest ? e.target.closest(".mark[data-tip]") : null;
+      if (!mark) return tip.classList.remove("on");
+      tip.textContent = mark.dataset.tip;
+      tip.classList.add("on");
+      const pad = 14;
+      tip.style.left = `${Math.min(e.clientX + pad, window.innerWidth - tip.offsetWidth - 8)}px`;
+      tip.style.top = `${Math.min(e.clientY + pad, window.innerHeight - tip.offsetHeight - 8)}px`;
+    });
+  },
+
   appendNote(word) {
     const input = this.el("f-note");
     const val = input.value.trim();
@@ -1449,6 +1757,7 @@ const UI = {
     this.el("s-net").textContent = Utils.formatCurrency(s.net);
 
     this.renderAbsurd();
+    Charts.renderAll();
     this.renderPeople();
     this.renderRows();
   },
