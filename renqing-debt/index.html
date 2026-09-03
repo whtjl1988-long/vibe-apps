@@ -367,15 +367,29 @@
   .person-link:hover { text-decoration: underline; }
 
   /* 分享 */
-  #share-btn { position: fixed; top: 20px; right: 20px; z-index: 40; font-size: 14px; letter-spacing: -0.224px; padding: 8px 18px; }
-  /* 返回作品墙（规则 10 模板约定：每个软件都要有） */
-  #back-link {
-    position: fixed; top: 20px; left: 20px; z-index: 40;
-    font-size: 14px; letter-spacing: -0.224px; line-height: 1.29; text-decoration: none;
-    padding: 8px 16px; border-radius: var(--r-pill);
-    background: var(--pearl); color: var(--ink-80); border: 1px solid var(--divider-soft);
+  /* 顶部品牌条：唯一按站点视觉走的部件（站点 token 直接硬编码——软件自包含，拿不到站点 CSS） */
+  #site-bar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 20px;
+    height: 48px; padding: 0 20px;
+    background: #0b0b0b; border-bottom: 1px solid #ffffff14;
+    font-family: ui-monospace, "JetBrains Mono", monospace;
   }
-  #back-link:hover { border-color: var(--primary); color: var(--primary); }
+  #site-bar .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #f4f3f1; }
+  #site-bar .brand img { display: block; width: 24px; height: 24px; }
+  #site-bar .brand span { font-family: var(--font); font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+  #site-bar #back-link {
+    font-size: 12px; letter-spacing: 0.1em; text-decoration: none; color: #f4f3f199;
+    padding: 6px 0; border-bottom: 1px solid transparent;
+  }
+  #site-bar #back-link:hover { color: #f4f3f1; border-bottom-color: #c7ff3d; }
+  #site-bar #share-btn {
+    margin-left: auto; font-family: inherit;
+    font-size: 12px; letter-spacing: 0.1em; line-height: 1;
+    padding: 8px 14px; border-radius: 9px;
+    background: transparent; color: #f4f3f199; border: 1px solid #ffffff14;
+  }
+  #site-bar #share-btn:hover { background: #c7ff3d; color: #0b0b0b; border-color: #c7ff3d; }
 
   /* 弹层：无阴影，靠背景模糊与发丝线分层 */
   .overlay {
@@ -456,7 +470,7 @@
   @media (max-width: 834px) {
     body { font-size: 17px; }
     .wrap { padding: 0 20px; }
-    header { padding: 88px 0 32px; margin-bottom: 24px; } /* 顶部留给固定的分享按钮 */
+    header { padding: 48px 0 32px; margin-bottom: 24px; }
     .field-date { grid-column: 1 / -1; }
     h1 { font-size: 32px; }
     header p { font-size: 17px; letter-spacing: -0.374px; }
@@ -479,8 +493,15 @@
 </style>
 </head>
 <body>
-<a id="back-link" href="https://vibe-all.com/apps/">← 作品墙</a>
-<button id="share-btn" type="button">分享</button>
+<!-- 顶部品牌条：软件里唯一共享站点视觉的部件（见 DESIGN.md §品牌条 / ADR-0005 修正） -->
+<nav id="site-bar">
+  <a class="brand" href="https://vibe-all.com/">
+    <img src="./logo-mushroom.webp" alt="vibe everyting 蘑菇 logo" width="24" height="24">
+    <span>Vibe everyting</span>
+  </a>
+  <a id="back-link" href="https://vibe-all.com/apps/">作品墙</a>
+  <button id="share-btn" type="button">分享</button>
+</nav>
 <header>
   <div class="wrap">
     <div class="title-row">
