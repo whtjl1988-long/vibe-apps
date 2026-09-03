@@ -42,16 +42,23 @@ export default {
     if (!session) return unauthorized();
 
     const res = await env.ASSETS.fetch(request);
-    const out = new Response(res.body, res);
+
+    // ⚠️ 别写成 `new Response(res.body, res)`。那样复制过来的 headers 在**线上**
+    // 是 immutable，set/append 会**静默失败**——不报错、不抛异常，就是不生效。
+    // 本地 Miniflare 没有这个约束，于是本地测试全绿而线上一张票都发不出去
+    // （2026-09-03 就是这么栽的）。显式建一个新的 Headers，才是两边都成立的写法。
+    const headers = new Headers(res.headers);
+
     // 门后的东西是私人的：别让任何中间层替我缓存
-    out.headers.set("Cache-Control", "private, no-cache");
+    headers.set("Cache-Control", "private, no-cache");
 
     // 有票要发就挂上。这里不问「你是怎么进来的」——那是认证自己的事。
     // 只在导航请求上挂：否则登录后一页十几张子资源会各种一次。
     if (session.cookie && isNavigation(request)) {
-      out.headers.append("Set-Cookie", session.cookie);
+      headers.append("Set-Cookie", session.cookie);
     }
-    return out;
+
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
   },
 };
 
