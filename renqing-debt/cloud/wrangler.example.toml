@@ -1,0 +1,19 @@
+# 云端形态的 Worker 配置模板。
+# 用法：复制成 wrangler.toml，填自己的值。wrangler.toml 不进仓库（见 .gitignore），
+# 因为里面是你自己的 Worker 名和资源 id。
+
+name = "CHANGE-ME"                # 你的 Worker 名字
+main = "src/index.js"
+compatibility_date = "2026-09-03"
+
+[assets]
+directory = "./public"            # 把你要跑的静态页放这里
+binding = "ASSETS"
+
+# ⚠️ 这一行不能删：默认情况下静态资源会先于 Worker 命中，
+# 也就是**绕过登录墙**。打开它，每个请求才都先过 authenticate()。
+run_worker_first = true
+
+# 凭据不写在配置里，用 secret（存在 Cloudflare，不落任何文件）：
+#   npx wrangler secret put AUTH_USER
+#   npx wrangler secret put AUTH_PASSWORD

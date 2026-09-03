@@ -1,0 +1,7 @@
+node_modules/
+test-results/
+playwright-report/
+# 真实配置与凭据不进仓库
+wrangler.toml
+.dev.vars
+.wrangler/

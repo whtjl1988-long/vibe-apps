@@ -1,0 +1,15 @@
+# 只给 e2e 用的本地配置：跑在 wrangler dev 上，不连任何线上资源。
+# 这里的凭据是**测试专用假值**，公开无妨——真部署的凭据走 secret。
+
+name = "cloud-e2e"
+main = "src/index.js"
+compatibility_date = "2026-09-03"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[vars]
+AUTH_USER = "test-user"
+AUTH_PASSWORD = "test-password"
