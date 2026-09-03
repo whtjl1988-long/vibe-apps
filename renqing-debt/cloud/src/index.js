@@ -33,6 +33,17 @@ const SESSION_MAX_AGE = 120 * 24 * 3600;
 // 天天在用的人也可能正好在婚礼现场撞上到期。
 const SESSION_RENEW_WITHIN = 30 * 24 * 3600;
 
+// 账本接口。整份 JSON 存一个 key——这本账一年几十条，整份重写在这个量级
+// 没有性能问题，不值得为它上 D1。
+const LEDGER_PATH = "/api/ledger";
+
+// key 带用户前缀。今天前缀是定值，将来多用户天然分隔，**不需要迁移已有数据**。
+const ledgerKey = (user) => `u/${user}/renqing/v1`;
+
+// 注入给页面的标记：告诉软件「你正跑在云端」。
+// 公开分发的那一份没有这个标记，于是仍是试玩态/自托管态——同一份源码，不 fork。
+const CLOUD_FLAG = "__CLOUD_HOSTED__";
+
 export default {
   async fetch(request, env) {
     // 退出登录不需要先登录：它只做「清掉凭证」这一件事
@@ -41,26 +52,90 @@ export default {
     const session = await authenticate(request, env);
     if (!session) return unauthorized();
 
-    const res = await env.ASSETS.fetch(request);
-
-    // ⚠️ 别写成 `new Response(res.body, res)`。那样复制过来的 headers 在**线上**
-    // 是 immutable，set/append 会**静默失败**——不报错、不抛异常，就是不生效。
-    // 本地 Miniflare 没有这个约束，于是本地测试全绿而线上一张票都发不出去
-    // （2026-09-03 就是这么栽的）。显式建一个新的 Headers，才是两边都成立的写法。
-    const headers = new Headers(res.headers);
-
-    // 门后的东西是私人的：别让任何中间层替我缓存
-    headers.set("Cache-Control", "private, no-cache");
-
-    // 有票要发就挂上。这里不问「你是怎么进来的」——那是认证自己的事。
-    // 只在导航请求上挂：否则登录后一页十几张子资源会各种一次。
-    if (session.cookie && isNavigation(request)) {
-      headers.append("Set-Cookie", session.cookie);
+    if (new URL(request.url).pathname === LEDGER_PATH) {
+      return withCookie(await ledgerApi(request, env, session.user), session, request);
     }
 
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+    let res = await env.ASSETS.fetch(request);
+    // 给 HTML 注入云端标记。放在 head 最前面，页面脚本读到时它已经在了。
+    if (isHtml(res)) {
+      res = new HTMLRewriter()
+        .on("head", {
+          element(el) {
+            el.prepend(`<script>window.${CLOUD_FLAG}=true</script>`, { html: true });
+          },
+        })
+        .transform(res);
+    }
+
+    return withCookie(res, session, request);
   },
 };
+
+/* ---------- 账本 ---------- */
+
+/**
+ * 整份账本读写。Worker 不解释账本的内容——它只认「是不是一份看起来像账本的 JSON」，
+ * 剩下的归软件。这样将来软件改数据结构，这一层不用跟着动。
+ */
+async function ledgerApi(request, env, user) {
+  if (!env.LEDGER) return json({ error: "没有配置账本存储" }, 501);
+  const key = ledgerKey(user);
+
+  if (request.method === "GET") {
+    const raw = await env.LEDGER.get(key);
+    // 还没有账本 ≠ 出错：204 让前端干净地走「空账本起步」
+    if (raw === null) return new Response(null, { status: 204 });
+    return new Response(raw, { headers: { "Content-Type": "application/json; charset=utf-8" } });
+  }
+
+  if (request.method === "PUT") {
+    const text = await request.text();
+    // 只做形状校验，不看内容：挡住空 body 和明显不是账本的东西，
+    // 免得一次网络抽风把整本账覆盖成 "undefined"
+    try {
+      const parsed = JSON.parse(text);
+      if (!parsed || !Array.isArray(parsed.records)) throw new Error("shape");
+    } catch {
+      return json({ error: "这不像一份账本" }, 400);
+    }
+    await env.LEDGER.put(key, text);
+    return json({ ok: true });
+  }
+
+  return json({ error: "不支持的方法" }, 405);
+}
+
+const json = (body, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+
+const isHtml = (res) => (res.headers.get("Content-Type") || "").includes("text/html");
+
+/**
+ * 统一出口：加缓存策略、按需挂会话票。
+ *
+ * ⚠️ 别写成 `new Response(res.body, res)`。那样复制过来的 headers 在**线上**
+ * 是 immutable，set/append 会**静默失败**——不报错、不抛异常，就是不生效。
+ * 本地 Miniflare 没有这个约束，于是本地测试全绿而线上一张票都发不出去
+ * （2026-09-03 就是这么栽的）。显式建一个新的 Headers，才是两边都成立的写法。
+ */
+function withCookie(res, session, request) {
+  const headers = new Headers(res.headers);
+
+  // 门后的东西是私人的：别让任何中间层替我缓存
+  headers.set("Cache-Control", "private, no-cache");
+
+  // 有票要发就挂上。这里不问「你是怎么进来的」——那是认证自己的事。
+  // 只在导航请求上挂：否则登录后一页十几张子资源会各种一次。
+  if (session.cookie && isNavigation(request)) {
+    headers.append("Set-Cookie", session.cookie);
+  }
+
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
 
 /**
  * 唯一的认证入口：返回 `{ user, cookie }`，或 null 表示拒绝。

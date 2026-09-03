@@ -5,3 +5,4 @@ playwright-report/
 wrangler.toml
 .dev.vars
 .wrangler/
+test-app/

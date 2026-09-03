@@ -1,0 +1,21 @@
+# 只给 e2e 用的本地配置：跑在 wrangler dev 上，不连任何线上资源。
+# 这里的凭据是**测试专用假值**，公开无妨——真部署的凭据走 secret。
+
+name = "cloud-e2e-app"
+main = "src/index.js"
+compatibility_date = "2026-09-03"
+
+[assets]
+directory = "./test-app"
+binding = "ASSETS"
+run_worker_first = true
+
+[vars]
+AUTH_USER = "test-user"
+AUTH_PASSWORD = "测试:密码-123"   # 故意带中文和冒号：钉住 UTF-8 解码与「按首个冒号切」
+SESSION_SECRET = "test-session-secret-do-not-use"   # 会话 cookie 的签名密钥（假值）
+
+# 账本存储。本地 wrangler dev 用 Miniflare 的内存模拟，id 只是占位。
+[[kv_namespaces]]
+binding = "LEDGER"
+id = "local-e2e-placeholder"
