@@ -339,12 +339,43 @@
     font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48);
   }
 
+  /* 资产负债表长图预览 */
+  #report-overlay .modal { max-width: 420px; }
+  .report-preview { margin: 17px 0; border: 1px solid var(--hairline); border-radius: var(--r-sm); overflow: hidden; background: var(--pearl); }
+  .report-preview img { display: block; width: 100%; height: auto; }
+
+  /* 打印：屏幕上藏起来 */
+  #print-root { display: none; }
+
   footer {
     margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--hairline);
     font-size: 12px; letter-spacing: -0.12px; line-height: 1.8; color: var(--ink-48);
   }
   footer a { color: var(--primary); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
+
+  /* 打印稿：A4 纵向、纯黑灰阶（DESIGN.md §导出物）——蓝色打出来是灰的，直接按灰阶排 */
+  @media print {
+    @page { size: A4 portrait; margin: 16mm 14mm; }
+    body { background: #fff; font-size: 11pt; }
+    body > *:not(#print-root) { display: none !important; }
+    #print-root { display: block; }
+    .sheet-head { border-bottom: 1.5pt solid #000; padding-bottom: 8pt; margin-bottom: 12pt; }
+    .sheet-head h1 { font-size: 20pt; font-weight: 600; letter-spacing: 0; }
+    .sheet-head .meta { font-size: 10pt; color: #333; margin-top: 4pt; display: flex; gap: 16pt; flex-wrap: wrap; }
+    .sheet table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+    .sheet thead { display: table-header-group; } /* 跨页重复表头 */
+    .sheet th { text-align: left; font-weight: 600; border-bottom: 0.75pt solid #000; padding: 5pt 4pt; }
+    .sheet td { border-bottom: 0.4pt solid #999; padding: 5pt 4pt; }
+    .sheet tr { break-inside: avoid; }
+    .sheet .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .sheet .void td { color: #666; text-decoration: line-through; }
+    .sheet-total { margin-top: 10pt; border-top: 1.5pt solid #000; padding-top: 8pt; font-size: 11pt; display: flex; gap: 24pt; flex-wrap: wrap; }
+    .sheet-total b { font-weight: 600; }
+    .sheet-sign { margin-top: 28pt; display: flex; gap: 32pt; font-size: 10.5pt; }
+    .sheet-sign div { flex: 1; border-top: 0.75pt solid #000; padding-top: 6pt; }
+    .sheet-foot { margin-top: 16pt; font-size: 8.5pt; color: #666; }
+  }
 
   @media (max-width: 834px) {
     body { font-size: 17px; }
@@ -578,6 +609,8 @@
       <button class="ghost" id="btn-json">导出数据文件</button>
       <button class="ghost" id="btn-import">导入数据文件</button>
       <input type="file" id="file-json" accept="application/json,.json" hidden>
+      <button class="ghost" id="btn-print">打印礼单</button>
+      <button class="ghost" id="btn-report">生成资产负债表</button>
       <button class="ghost" id="btn-reset" hidden>重置为演示数据</button>
       <span class="mode-note" id="mode-note"></span>
     </div>
@@ -591,6 +624,36 @@
 </div>
 
 <div id="tip"></div>
+
+<!-- 打印用：屏幕上不可见，只在打印时出现（@media print） -->
+<div id="print-root" aria-hidden="true"></div>
+
+<div class="overlay" id="print-overlay">
+  <div class="modal">
+    <h3>打印礼单</h3>
+    <p class="note">按事项打印一张 A4 礼单，含逐笔明细、合计大写与签名栏。</p>
+    <div class="field" style="margin:17px 0">
+      <label for="print-event">选择事项</label>
+      <select id="print-event"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" id="print-cancel">取消</button>
+      <button id="print-go">打印</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="report-overlay">
+  <div class="modal">
+    <h3>一纸人情资产负债表</h3>
+    <p class="note">下面这张图可以保存或直接分享。数字取自当前账本。</p>
+    <div class="report-preview"><img id="report-img" alt="人情资产负债表"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="report-close">关闭</button>
+      <button id="report-save">保存图片</button>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="person-overlay">
   <div class="modal">
@@ -775,7 +838,7 @@ const Store = {
  * -------------------------------------------------------------- */
 const DEMO_DATA = {
   version: 2,
-  tags: { relation: ["邻居"], method: ["支付宝"] },
+  tags: { relation: ["邻居", "领导"], method: ["代送的"] },
   events: [
     { id: "e-default", name: "日常往来", date: "" },
     { id: "e-my-wedding", name: "我结婚", date: "2021-10-03" },
@@ -789,9 +852,9 @@ const DEMO_DATA = {
   records: [
     // 送出：每一笔都是别人家办的一件事，所以每笔一个事项；备注只写这笔的情况
     { id: "d01", dir: "out", eventId: "e-eryi", name: "二舅", amount: 2000, note: "亲戚 · 现金 · 随了大份", date: "2026-08-20", void: false, createdAt: "2026-08-20 11:20", history: [] },
-    { id: "d02", dir: "out", eventId: "e-laoli", name: "老李", amount: 600, note: "同事 · 微信转的", date: "2026-03-12", void: false, createdAt: "2026-03-12 19:40", history: [] },
+    { id: "d02", dir: "out", eventId: "e-laoli", name: "老李", amount: 600, note: "同事 · 微信", date: "2026-03-12", void: false, createdAt: "2026-03-12 19:40", history: [] },
     { id: "d03", dir: "out", eventId: "e-lingdao", name: "领导", amount: 800, note: "领导 · 现金", date: "2025-09-06", void: false, createdAt: "2025-09-06 12:05", history: [] },
-    { id: "d04", dir: "out", eventId: "e-aqiang", name: "阿强", amount: 1000, note: "发小 · 微信转的", date: "2023-05-21", void: false, createdAt: "2023-05-21 09:15", history: [] },
+    { id: "d04", dir: "out", eventId: "e-aqiang", name: "阿强", amount: 1000, note: "发小 · 微信", date: "2023-05-21", void: false, createdAt: "2023-05-21 09:15", history: [] },
     { id: "d05", dir: "out", eventId: "e-wang", name: "王小雅", amount: 500, note: "同学 · 此后再无音讯", date: "2018-12-08", void: false, createdAt: "2018-12-08 17:30", history: [] },
     { id: "d06", dir: "out", eventId: "e-biaoge", name: "远房表哥", amount: 800, note: "亲戚 · 只见过这一面", date: "2019-06-16", void: false, createdAt: "2019-06-16 15:00", history: [] },
     // 收到：一场事挂一堆礼，事由「我结婚」只在事项里出现一次
@@ -808,8 +871,8 @@ const DEFAULT_EVENT = { id: "e-default", name: "日常往来", date: "" };
 
 // 备注预设标签：内置这些，用户可以自己加、自己删（自定义的才能删）
 const TAG_GROUPS = [
-  { key: "relation", label: "关系", builtin: ["亲戚", "发小", "朋友", "同事", "领导", "同学"] },
-  { key: "method", label: "方式", builtin: ["现金", "微信转的", "代送的", "礼品折价"] },
+  { key: "relation", label: "关系", builtin: ["亲戚", "发小", "朋友", "同事", "同学"] },
+  { key: "method", label: "方式", builtin: ["现金", "微信", "支付宝"] },
 ];
 const defaultTags = () => ({ relation: [], method: [] }); // 只存自定义部分，内置的写死在上面
 
@@ -1431,6 +1494,221 @@ const Exporter = {
   },
 };
 
+/* ---------- Print：礼单打印
+ * 走浏览器原生打印（零依赖）。打印稿按 DESIGN.md 的「导出物」规则走灰阶，
+ * 结构 = 抬头 + 逐笔 + 合计大写 + 签名栏。
+ * -------------------------------------------------------------- */
+const Print = {
+  sheet(eventId) {
+    const all = Ledger.all().filter((r) => eventId === "all" || r.eventId === eventId);
+    const live = all.filter((r) => !r.void);
+    const title = eventId === "all" ? "人情往来礼单" : `${Ledger.eventName(eventId)} 礼金登记`;
+    const sumIn = live.filter((r) => r.dir === "in").reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const sumOut = live.filter((r) => r.dir === "out").reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const net = sumIn - sumOut;
+
+    const rows = all
+      .map(
+        (r, i) => `<tr class="${r.void ? "void" : ""}">
+          <td class="num">${i + 1}</td>
+          <td>${Utils.esc(r.name)}</td>
+          <td>${DIR_LABEL[r.dir]}</td>
+          <td class="num">${Utils.formatCurrency(r.amount)}</td>
+          <td>${Utils.esc(Utils.amountToChinese(r.amount))}</td>
+          <td>${Utils.esc(r.note) || ""}</td>
+          <td>${Utils.esc(r.date)}</td>
+        </tr>`
+      )
+      .join("");
+
+    return `<div class="sheet">
+      <div class="sheet-head">
+        <h1>${Utils.esc(title)}</h1>
+        <div class="meta">
+          <span>打印日期：${Utils.today()}</span>
+          <span>共 ${live.length} 笔</span>
+          <span>登记人：____________</span>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr><th class="num">序</th><th>姓名</th><th>方向</th><th class="num">金额</th><th>大写</th><th>备注</th><th>日期</th></tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="7">（无记录）</td></tr>'}</tbody>
+      </table>
+      <div class="sheet-total">
+        <span>收到合计：<b>${Utils.formatCurrency(sumIn)}</b>（${Utils.amountToChinese(sumIn)}）</span>
+        <span>送出合计：<b>${Utils.formatCurrency(sumOut)}</b></span>
+        <span>净额：<b>${Utils.formatCurrency(net)}</b></span>
+      </div>
+      <div class="sheet-sign">
+        <div>东家签字：</div>
+        <div>记账人签字：</div>
+        <div>日期：</div>
+      </div>
+      <div class="sheet-foot">本礼单由「人情债管理系统」生成，仅作登记留存之用，不具备任何法律效力。</div>
+    </div>`;
+  },
+
+  go(eventId) {
+    document.getElementById("print-root").innerHTML = this.sheet(eventId);
+    window.print();
+  },
+};
+
+/* ---------- Report：一纸人情资产负债表（canvas 长图，可保存分享）
+ * 用 canvas 自己排版，零依赖；配色照 DESIGN.md，只有一处 Action Blue。
+ * -------------------------------------------------------------- */
+const Report = {
+  W: 1080,
+  F: '"PingFang SC", -apple-system, system-ui, sans-serif',
+  PAD: 88,
+
+  // 先把文字按宽度切成行，好据此算画布高度——否则判词一换行就会压到下面的数字
+  lines(x, text, maxW) {
+    const out = [];
+    let line = "";
+    for (const ch of text) {
+      if (x.measureText(line + ch).width > maxW) {
+        out.push(line);
+        line = ch;
+      } else line += ch;
+    }
+    if (line) out.push(line);
+    return out;
+  },
+
+  draw() {
+    const probe = document.createElement("canvas").getContext("2d");
+    const maxW = this.W - this.PAD * 2;
+    const s = Ledger.stats();
+    const { metrics, verdict } = Absurd.compute();
+    const worst = Ledger.people()
+      .map((p) => ({ ...p, r: Rating.score(p) }))
+      .sort((a, b) => a.r.score - b.r.score)
+      .slice(0, 3);
+
+    probe.font = `600 40px ${this.F}`;
+    const vLines = this.lines(probe, verdict, maxW);
+
+    // 版式（自上而下算一遍，画布高度按内容定）
+    const L = {};
+    L.title = 150;
+    L.meta = 196;
+    L.verdictTop = 272;
+    L.verdictLH = 52;
+    L.bigLabel = L.verdictTop + vLines.length * L.verdictLH + 44;
+    L.bigValue = L.bigLabel + 50;
+    L.cardH = L.bigValue + 46;
+    L.metricsTitle = L.cardH + 76;
+    L.metricRow = L.metricsTitle + 80; // 第一条指标的基线
+    L.metricsBottom = L.metricRow + (metrics.length - 1) * 56;
+    L.worstTitle = L.metricsBottom + 90;
+    L.worstRow = L.worstTitle + 52;
+    L.worstBottom = worst.length ? L.worstRow + (worst.length - 1) * 52 : L.metricsBottom;
+    const H = L.worstBottom + 170;
+
+    const c = document.createElement("canvas");
+    c.width = this.W;
+    c.height = H;
+    const x = c.getContext("2d");
+
+    x.fillStyle = "#f5f5f7";
+    x.fillRect(0, 0, this.W, H);
+    x.fillStyle = "#ffffff";
+    x.fillRect(0, 0, this.W, L.cardH);
+    x.strokeStyle = "#e0e0e0";
+    x.lineWidth = 2;
+    x.beginPath();
+    x.moveTo(0, L.cardH);
+    x.lineTo(this.W, L.cardH);
+    x.stroke();
+
+    x.fillStyle = "#1d1d1f";
+    x.font = `600 60px ${this.F}`;
+    x.fillText("人情资产负债表", this.PAD, L.title);
+    x.fillStyle = "#7a7a7a";
+    x.font = `400 26px ${this.F}`;
+    x.fillText(`截至 ${Utils.today()} · 编号 RQ-${Date.now().toString(36).toUpperCase().slice(-6)}`, this.PAD, L.meta);
+
+    x.fillStyle = "#1d1d1f";
+    x.font = `600 40px ${this.F}`;
+    vLines.forEach((ln, i) => x.fillText(ln, this.PAD, L.verdictTop + i * L.verdictLH));
+
+    [["收到合计", Utils.formatCurrency(s.sumIn)], ["送出合计", Utils.formatCurrency(s.sumOut)], ["净人情头寸", Utils.formatCurrency(s.net)]]
+      .forEach(([k, v], i) => {
+        const cx = this.PAD + i * (maxW / 3);
+        x.fillStyle = "#7a7a7a";
+        x.font = `400 24px ${this.F}`;
+        x.fillText(k, cx, L.bigLabel);
+        x.fillStyle = i === 2 ? "#0066cc" : "#1d1d1f";
+        x.font = `600 44px ${this.F}`;
+        x.fillText(v, cx, L.bigValue);
+      });
+
+    x.fillStyle = "#7a7a7a";
+    x.font = `400 24px ${this.F}`;
+    x.fillText("主要指标", this.PAD, L.metricsTitle);
+    metrics.forEach((m, i) => {
+      const y = L.metricRow + i * 56;
+      x.strokeStyle = "#e0e0e0";
+      x.lineWidth = 1;
+      x.beginPath();
+      x.moveTo(this.PAD, y - 40);
+      x.lineTo(this.W - this.PAD, y - 40);
+      x.stroke();
+      x.fillStyle = "#333333";
+      x.font = `400 28px ${this.F}`;
+      x.fillText(m.label, this.PAD, y);
+      x.fillStyle = "#1d1d1f";
+      x.font = `600 30px ${this.F}`;
+      x.textAlign = "right";
+      x.fillText(m.value, this.W - this.PAD, y);
+      x.textAlign = "left";
+    });
+
+    if (worst.length) {
+      x.fillStyle = "#7a7a7a";
+      x.font = `400 24px ${this.F}`;
+      x.fillText("信用评级垫底", this.PAD, L.worstTitle);
+      worst.forEach((p, i) => {
+        const y = L.worstRow + i * 52;
+        x.fillStyle = "#1d1d1f";
+        x.font = `400 28px ${this.F}`;
+        x.fillText(p.name, this.PAD, y);
+        x.fillStyle = p.r.grade === "CCC" ? "#7a7a7a" : "#0066cc";
+        x.font = `600 28px ${this.F}`;
+        x.textAlign = "right";
+        x.fillText(p.r.grade, this.W - this.PAD, y);
+        x.textAlign = "left";
+      });
+    }
+
+    x.fillStyle = "#7a7a7a";
+    x.font = `400 20px ${this.F}`;
+    x.fillText("本表所有指标由本系统自行发明，不具备任何财务、法律或人际关系参考价值。", this.PAD, H - 86);
+    x.fillStyle = "#1d1d1f";
+    x.font = `600 22px ${this.F}`;
+    x.fillText("人情债管理系统 · vibe-all.com", this.PAD, H - 46);
+    return c;
+  },
+
+  open() {
+    const canvas = this.draw();
+    this.dataUrl = canvas.toDataURL("image/png");
+    document.getElementById("report-img").src = this.dataUrl;
+    document.getElementById("report-overlay").classList.add("open");
+  },
+
+  save() {
+    if (!this.dataUrl) return;
+    const a = document.createElement("a");
+    a.href = this.dataUrl;
+    a.download = `人情资产负债表-${Utils.today()}.png`;
+    a.click();
+  },
+};
+
 /* ---------- Speech：语音播报 ---------- */
 const Speech = {
   available() {
@@ -1589,6 +1867,23 @@ const UI = {
         key === "people" ? this.renderPeople() : this.renderRows();
       });
     });
+    this.el("btn-print").addEventListener("click", () => {
+      const events = Ledger.events();
+      this.el("print-event").innerHTML =
+        `<option value="all">全部往来</option>` +
+        events.map((e) => `<option value="${e.id}">${Utils.esc(e.name)}</option>`).join("");
+      // 默认跟着明细当前的筛选走
+      this.el("print-event").value = this.filter;
+      this.el("print-overlay").classList.add("open");
+    });
+    this.el("print-cancel").addEventListener("click", () => this.el("print-overlay").classList.remove("open"));
+    this.el("print-go").addEventListener("click", () => {
+      this.el("print-overlay").classList.remove("open");
+      Print.go(this.el("print-event").value);
+    });
+    this.el("btn-report").addEventListener("click", () => Report.open());
+    this.el("report-close").addEventListener("click", () => this.el("report-overlay").classList.remove("open"));
+    this.el("report-save").addEventListener("click", () => Report.save());
     this.el("btn-xlsx").addEventListener("click", () => Exporter.xlsx());
     this.el("btn-json").addEventListener("click", () => Exporter.json());
     this.el("btn-import").addEventListener("click", () => this.el("file-json").click());
