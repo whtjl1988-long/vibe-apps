@@ -280,6 +280,35 @@
   .pager button:disabled { color: var(--ink-48); cursor: default; opacity: 0.5; }
   .pager .pos { font-variant-numeric: tabular-nums; }
 
+  /* FAQ */
+  #faq-cats { margin: 0 0 17px; }
+  .faq-item {
+    background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    padding: 0 24px; margin-bottom: 12px;
+  }
+  .faq-item summary {
+    cursor: pointer; list-style: none; padding: 20px 0;
+    font-size: 17px; font-weight: 600; letter-spacing: -0.374px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; margin-left: auto; color: var(--ink-48); font-weight: 400; }
+  .faq-item[open] summary::after { content: "−"; }
+  .faq-item summary:hover { color: var(--primary); }
+  .faq-a { padding: 0 0 20px; font-size: 17px; letter-spacing: -0.374px; color: var(--ink-80); border-top: 1px solid var(--divider-soft); padding-top: 17px; }
+  .faq-a strong { font-weight: 600; color: var(--ink); }
+  .faq-tag {
+    font-size: 12px; letter-spacing: -0.12px; line-height: 1; padding: 5px 10px;
+    border-radius: var(--r-pill); background: var(--pearl); color: var(--ink-48); border: 1px solid var(--divider-soft);
+    font-weight: 400; white-space: nowrap;
+  }
+  .faq-tag.region { color: var(--primary); border-color: var(--primary); background: var(--canvas); }
+
+  /* 民俗软提示 */
+  .folk-hints { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .folk-hints p { font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48); margin: 0; }
+  .folk-hints p b { font-weight: 600; color: var(--ink-80); }
+
   /* 信用评级徽章 */
   .grade {
     display: inline-block; font-size: 12px; letter-spacing: -0.12px; line-height: 1;
@@ -459,6 +488,7 @@
       </div>
       <div class="presets" id="tags-relation"></div>
       <div class="presets" id="tags-method"></div>
+      <div class="folk-hints" id="folk-hints"></div>
       <p class="entry-hint">事由（结婚 / 满月 / 乔迁）写在<strong>事项</strong>里，只写一次；备注不必再重复它。</p>
       <div class="entry-actions">
         <button id="btn-add">记一笔</button>
@@ -597,8 +627,14 @@
 
   <div class="view" id="view-faq">
     <section>
-      <h2>FAQ <span class="hint">（随礼常见问题，第 4 批填充内容）</span></h2>
-      <div class="card"><p class="note">内容正在整理中。</p></div>
+      <h2>FAQ <span class="hint">（随礼常见问题。各地风俗差异很大，以下按通行说法，标「各地不同」的请按你老家的规矩）</span></h2>
+      <div class="filters">
+        <input type="search" id="faq-q" placeholder="搜问题或答案" autocomplete="off">
+        <span class="count" id="faq-count"></span>
+      </div>
+      <div class="presets" id="faq-cats"></div>
+      <div id="faq-list"></div>
+      <div class="empty" id="faq-empty" hidden>没有匹配的问题。</div>
     </section>
   </div>
 
@@ -1080,6 +1116,46 @@ const Ledger = {
   },
 };
 
+/* ---------- FAQ：随礼常见问题
+ * 内容是初稿，**各地风俗差异极大**——凡是有地域差异的条目都标了「各地不同」。
+ * 培然同学逐条过一遍再定稿。
+ * -------------------------------------------------------------- */
+const FAQ_CATS = ["该随多少", "回不回礼", "场合与时机", "代送与归属", "数字与忌讳", "记账与对账"];
+
+const FAQ = [
+  { c: "该随多少", q: "第一次随礼，随多少合适？", a: "看两件事：你跟他的亲疏，和当地的“起步价”。同事、普通朋友通常走当地最低档；亲戚、发小往上走一到两档。真拿不准，就问一个跟你关系相当、也去的人随了多少——跟着走最稳。", r: true },
+  { c: "该随多少", q: "同一场事，随多少算“不失礼”？", a: "宁可跟同层级的人一致，也不要独自拔高或压低。人情的尴尬几乎都来自“别人都随 600，只有我随 300”，而不是绝对金额。", r: false },
+  { c: "该随多少", q: "关系一般，但被邀请了，能随最低档吗？", a: "可以。被邀请不等于必须随重礼，随当地最低档并到场，礼数就算尽到了。", r: true },
+  { c: "该随多少", q: "两口子一起去，要随双份吗？", a: "一般是一家一份，不按人头。但如果对方明确按人头摆席，或当地习惯按人头，就随双份。", r: true },
+  { c: "该随多少", q: "他随过我，现在他办事，我该随多少？", a: "通行的做法是**不少于**他当年随你的数，考虑到这些年物价，很多地方会往上加一档。本系统的关系人页能直接查到他当年随了多少。", r: true },
+
+  { c: "回不回礼", q: "收了礼，一定要回吗？", a: "人情的本质是“来而不往非礼也”。多数地方的做法不是立刻还钱，而是**等对方办事时随回去**。所以“回礼”通常是一次未来的支出，不是当场的动作。", r: false },
+  { c: "回不回礼", q: "回礼要比来礼多吗？", a: "**各地差别最大的一条。** 有的地方讲究“回礼要加一档”，有的地方等额即可，也有地方回多了反而被认为是想“两清、断往来”。按你老家的规矩来。", r: true },
+  { c: "回不回礼", q: "对方多年不办事，这份人情怎么办？", a: "只能挂着。这也是本系统把它叫“应收账款”的原因——它不是坏人，只是长期没有回收机会。真要了结，可以在对方家有小事（升学、乔迁、生日）时主动补上一次。", r: false },
+  { c: "回不回礼", q: "我随了礼，但他家办事时我没被通知，算什么？", a: "多数情况是通知遗漏而不是有意。可以事后补随，也可以就此打住——但从人情账上说，这一笔通常就变成了坏账。", r: false },
+
+  { c: "场合与时机", q: "哪些场合要随礼？", a: "普遍要随的：婚嫁、丧事、满月/百天、乔迁、升学、大寿。是否要随生日、开业、生病探望，各地和各圈子差别很大。", r: true },
+  { c: "场合与时机", q: "人到不了，礼要不要到？", a: "礼到人不到是很常见的。托人代送或转账都行，最好当天送到并说明原因，比事后补更妥当。", r: false },
+  { c: "场合与时机", q: "随礼是提前给还是当天给？", a: "当天到场时交给礼账先生（记账的人）最常见。关系近的也有提前送的，尤其是要帮忙操办的。", r: true },
+  { c: "场合与时机", q: "白事随礼和喜事有什么不同？", a: "白事讲究更多、更忌讳张扬：通常不说“恭喜”，金额习惯上与喜事分开对待，很多地方明确**忌双数**。具体数额和讲究务必按当地来。", r: true },
+  { c: "场合与时机", q: "多年不来往的人办事，还要随吗？", a: "看你想不想继续这段关系。随了就是重新接上，不随基本就是自然断掉——这件事本系统帮不了你，它只负责把账算清楚。", r: false },
+
+  { c: "代送与归属", q: "托别人带的礼，人情算谁的？", a: "算出钱的人。代送者只是“经手人”，不承担这份人情。建议在备注里写清“XX 代送”，否则几年后没人记得清。", r: false },
+  { c: "代送与归属", q: "我替别人垫付了随礼，怎么记？", a: "记成你替他垫付，人情归他、钱归你。本系统的做法是照实记在他名下，备注里写「代垫」。", r: false },
+  { c: "代送与归属", q: "一家人分别随礼，怎么算？", a: "如果是分了家的兄弟姐妹，各随各的、各算各的人情；如果是一家人凑一份，就记一笔，备注写清是谁家。", r: true },
+  { c: "代送与归属", q: "公司同事集体随礼，人情算谁的？", a: "通常算集体的，个人不单独欠。但如果日后你单独办事，只有几个人来，那几个人的账才是你要单独记的。", r: false },
+
+  { c: "数字与忌讳", q: "为什么大家爱用 6 和 8？", a: "取“六六大顺”“发”的谐音，属于图吉利。这是偏好，不是规矩——不用 6/8 并不失礼。", r: false },
+  { c: "数字与忌讳", q: "4 是不是一定要避开？", a: "多数地方会避开带 4 的数额（谐音“死”），尤其是白事和喜事都尽量不用。但也有地方并不在意。", r: true },
+  { c: "数字与忌讳", q: "喜事一定要随双数吗？", a: "很多地方讲究“好事成双”，喜事随双数、白事忌双数。但南北差异很大，有的地方喜事随单数也很常见。", r: true },
+  { c: "数字与忌讳", q: "尾数带 0 好还是不带好？", a: "整数最省事也最不容易出错。个别地方讲究尾数带 6/8 更体面，属于加分项而非必需。", r: true },
+
+  { c: "记账与对账", q: "为什么要把人情记下来？", a: "因为人情是**双向、跨年、金额不等**的往来，靠记忆必然出错。最常见的翻车是：他当年随你多少，你完全记不清了。", r: false },
+  { c: "记账与对账", q: "办事当天怎么记最不容易乱？", a: "一个人念、一个人录，录完立刻当面复述一遍金额。本系统的重名提示、语音播报、当日小结都是为这个场景做的。", r: false },
+  { c: "记账与对账", q: "记错了怎么办？", a: "别删。用「作废」保留痕迹，或者用「改」——本系统会记下改过几次。礼账最怕的不是记错，是查不出哪里错了。", r: false },
+  { c: "记账与对账", q: "礼账本要保存多久？", a: "至少到你把这些人情都还完为止——通常是十几年。所以本系统提供导出数据文件与 Excel，别只存在一台设备里。", r: false },
+];
+
 /* ---------- Rating：对手方信用评级
  * 五档 AAA / AA / A / BBB / CCC。评的是**账面行为**，不是人品——
  * 话术只描述往来记录本身（DESIGN 决策：毒舌对事不对人）。
@@ -1494,6 +1570,48 @@ const Exporter = {
   },
 };
 
+/* ---------- Folk：民俗软提示
+ * 全部软提示、不拦、不弹层——办事现场连录几十笔，每笔弹一次会被砸手机。
+ * 只有「疑似重复」继续用确认层（那是真会出错的事）。
+ * 规则里带地域差异的都说明「各地不同」。
+ * -------------------------------------------------------------- */
+const Folk = {
+  check(entry) {
+    const hints = [];
+    const amount = Number(entry.amount) || 0;
+    const name = (entry.name || "").trim();
+    const eventName = (entry.eventName || "").trim(); // 直接用输入框文本——新事项还没建，查 id 查不到
+    if (!amount) return hints;
+
+    // ① 金额异常：和这个人历史往来比，高/低一档（纯数据，零争议）
+    if (name) {
+      const past = Ledger.live().filter((r) => r.name === name && r.dir === entry.dir);
+      if (past.length) {
+        const avg = past.reduce((t, r) => t + (Number(r.amount) || 0), 0) / past.length;
+        if (avg > 0 && amount >= avg * 2) {
+          hints.push(`本笔金额是你与<b>${Utils.esc(name)}</b>历史${DIR_LABEL[entry.dir]}均值（${Utils.formatCurrency(Math.round(avg))}）的 ${(amount / avg).toFixed(1)} 倍。`);
+        } else if (avg > 0 && amount <= avg * 0.5) {
+          hints.push(`本笔金额不足你与<b>${Utils.esc(name)}</b>历史${DIR_LABEL[entry.dir]}均值（${Utils.formatCurrency(Math.round(avg))}）的一半。`);
+        }
+      }
+    }
+
+    // ② 数字避讳：带 4（各地不同）
+    if (/4/.test(String(Math.round(amount)))) {
+      hints.push("金额含数字 <b>4</b>，多数地方会避开（各地不同）。");
+    }
+
+    // ③ 红白事双单数（各地不同）——只在事项名能判断场合时才提
+    const white = /白事|丧|葬|追悼|祭|周年/.test(eventName);
+    const red = /婚|喜|嫁|娶|满月|百天|乔迁|升学|寿|生日|开业/.test(eventName);
+    const even = Math.round(amount) % 2 === 0;
+    if (white && even) hints.push("白事场合，很多地方<b>忌双数</b>（各地不同）。");
+    else if (red && !even) hints.push("喜事场合，很多地方讲究<b>好事成双</b>、随双数（各地不同）。");
+
+    return hints;
+  },
+};
+
 /* ---------- Print：礼单打印
  * 走浏览器原生打印（零依赖）。打印稿按 DESIGN.md 的「导出物」规则走灰阶，
  * 结构 = 抬头 + 逐笔 + 合计大写 + 签名栏。
@@ -1740,6 +1858,7 @@ const VIEWS = ["overview", "rows", "people", "faq"];
 const UI = {
   view: "overview",
   lastAdded: null, // 撤销上一笔用
+  faq: { q: "", cat: "all" },
   dir: "in",
   filter: "all",
   // 两张表各自的排序 / 翻页 / 搜索状态
@@ -1761,6 +1880,7 @@ const UI = {
     this.el("btn-reset").hidden = !IS_DEMO;
     this.bind();
     this.renderTags();
+    this.renderFaq();
     this.renderNameList();
     this.renderEventOptions();
     this.render();
@@ -1781,11 +1901,26 @@ const UI = {
         if (e.key === "Enter") this.tryAdd();
       });
     });
+    this.el("faq-q").addEventListener("input", (e) => {
+      this.faq.q = e.target.value;
+      this.renderFaq();
+    });
+    this.el("faq-cats").addEventListener("click", (e) => {
+      const chip = e.target.closest("button[data-cat]");
+      if (!chip) return;
+      this.faq.cat = chip.dataset.cat === this.faq.cat ? "all" : chip.dataset.cat;
+      this.renderFaq();
+    });
+    ["f-name", "f-amount", "f-event"].forEach((id) => {
+      this.el(id).addEventListener("input", () => this.renderFolkHints());
+    });
+    document.querySelectorAll(".dir-btn").forEach((b) => b.addEventListener("click", () => this.renderFolkHints()));
     this.el("amount-quick").addEventListener("click", (e) => {
       const chip = e.target.closest("button[data-amount]");
       if (!chip) return;
       this.el("f-amount").value = chip.dataset.amount;
       this.el("capital").textContent = `大写：${Utils.amountToChinese(chip.dataset.amount)}`;
+      this.renderFolkHints();
       this.el("f-name").focus();
     });
     this.el("btn-undo").addEventListener("click", () => {
@@ -2063,6 +2198,45 @@ const UI = {
     input.focus();
   },
 
+  renderFaq() {
+    const q = this.faq.q.trim();
+    const cat = this.faq.cat;
+    const list = FAQ.filter((f) => (cat === "all" || f.c === cat) && (!q || f.q.includes(q) || f.a.includes(q)));
+
+    this.el("faq-cats").innerHTML =
+      `<span class="preset-label">分类</span>` +
+      [["all", "全部"], ...FAQ_CATS.map((c) => [c, c])]
+        .map(([v, label]) => {
+          const n = v === "all" ? FAQ.length : FAQ.filter((f) => f.c === v).length;
+          const on = v === cat ? ' style="border-color:var(--primary);color:var(--primary)"' : "";
+          return `<button type="button" class="chip" data-cat="${Utils.esc(v)}"${on}>${Utils.esc(label)} ${n}</button>`;
+        })
+        .join("");
+
+    this.el("faq-count").textContent = q || cat !== "all" ? `${list.length} / ${FAQ.length} 条` : `${FAQ.length} 条`;
+    this.el("faq-empty").hidden = list.length > 0;
+    this.el("faq-list").innerHTML = list
+      .map(
+        (f) => `<details class="faq-item">
+          <summary>${Utils.esc(f.q)}${f.r ? '<span class="faq-tag region">各地不同</span>' : ""}<span class="faq-tag">${Utils.esc(f.c)}</span></summary>
+          <div class="faq-a">${f.a.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")}</div>
+        </details>`
+      )
+      .join("");
+  },
+
+  renderFolkHints() {
+    const hints = Folk.check({
+      dir: this.dir,
+      name: this.el("f-name").value,
+      amount: this.el("f-amount").value,
+      eventName: this.el("f-event").value,
+    });
+    this.el("folk-hints").innerHTML = hints.length
+      ? hints.map((h) => `<p>${h}</p>`).join("") + `<p style="opacity:.75">以上为通行说法，各地风俗不同，仅供参考。</p>`
+      : "";
+  },
+
   renderNameList() {
     const names = [...new Set(Ledger.all().map((r) => r.name))].filter(Boolean);
     this.el("name-list").innerHTML = names.map((n) => `<option value="${Utils.esc(n)}"></option>`).join("");
@@ -2147,6 +2321,7 @@ const UI = {
     this.el("f-amount").value = "";
     this.el("f-note").value = "";
     this.el("capital").textContent = "";
+    this.el("folk-hints").innerHTML = "";
     this.el("f-name").focus();
     this.renderEventOptions(); // 可能刚新建了事项
     this.renderNameList();
