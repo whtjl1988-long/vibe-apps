@@ -147,6 +147,7 @@
   .chip-add { border-style: dashed; color: var(--ink-48); }
   .entry-hint { font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48); margin-top: 17px; line-height: 1.4; }
   .entry-actions { display: flex; gap: 12px; align-items: center; margin-top: 24px; flex-wrap: wrap; }
+  .today-sum { font-size: 14px; letter-spacing: -0.224px; color: var(--ink-48); margin-left: auto; font-variant-numeric: tabular-nums; }
 
   /* 按钮 */
   button {
@@ -279,6 +280,17 @@
   .pager button:disabled { color: var(--ink-48); cursor: default; opacity: 0.5; }
   .pager .pos { font-variant-numeric: tabular-nums; }
 
+  /* 信用评级徽章 */
+  .grade {
+    display: inline-block; font-size: 12px; letter-spacing: -0.12px; line-height: 1;
+    padding: 5px 10px; border-radius: var(--r-pill); border: 1px solid var(--hairline);
+    color: var(--ink-80); background: var(--canvas); font-variant-numeric: tabular-nums;
+  }
+  .grade.g-AAA, .grade.g-AA { border-color: var(--primary); color: var(--primary); }
+  .grade.g-CCC { border-color: var(--ink-48); color: var(--ink-48); background: var(--pearl); }
+  #person-overlay .p-rating { font-size: 14px; letter-spacing: -0.224px; color: var(--ink-48); margin-bottom: 12px; }
+  #person-name .grade { vertical-align: middle; margin-left: 8px; }
+
   /* 关系人钻取 */
   .person-link {
     background: none; border: none; padding: 0; font: inherit; letter-spacing: inherit;
@@ -383,7 +395,8 @@
       <div class="fields">
         <div class="field">
           <label for="f-name">姓名</label>
-          <input type="text" id="f-name" autocomplete="off" placeholder="张三">
+          <input type="text" id="f-name" list="name-list" autocomplete="off" placeholder="张三">
+          <datalist id="name-list"></datalist>
         </div>
         <div class="field">
           <label for="f-amount">金额（元）</label>
@@ -404,12 +417,23 @@
         </div>
       </div>
       <div class="capital" id="capital"></div>
+      <div class="presets" id="amount-quick">
+        <span class="preset-label">金额</span>
+        <button type="button" class="chip" data-amount="200">200</button>
+        <button type="button" class="chip" data-amount="500">500</button>
+        <button type="button" class="chip" data-amount="600">600</button>
+        <button type="button" class="chip" data-amount="800">800</button>
+        <button type="button" class="chip" data-amount="1000">1000</button>
+        <button type="button" class="chip" data-amount="2000">2000</button>
+      </div>
       <div class="presets" id="tags-relation"></div>
       <div class="presets" id="tags-method"></div>
       <p class="entry-hint">事由（结婚 / 满月 / 乔迁）写在<strong>事项</strong>里，只写一次；备注不必再重复它。</p>
       <div class="entry-actions">
         <button id="btn-add">记一笔</button>
         <button class="ghost" id="btn-speak">语音播报</button>
+        <button class="ghost" id="btn-undo" hidden>撤销上一笔</button>
+        <span class="today-sum" id="today-sum"></span>
       </div>
     </div>
   </section>
@@ -492,6 +516,7 @@
             <th style="text-align:right"><button type="button" class="sort-th" data-tb="people" data-sk="net">净额</button></th>
             <th style="text-align:right"><button type="button" class="sort-th" data-tb="people" data-sk="count">笔数</button></th>
             <th><button type="button" class="sort-th" data-tb="people" data-sk="last">最近往来</button></th>
+            <th>评级</th>
           </tr>
         </thead>
         <tbody id="people-rows"></tbody>
@@ -571,6 +596,7 @@
   <div class="modal">
     <h3 id="person-name"></h3>
     <div class="p-sum" id="person-sum"></div>
+    <div class="p-rating" id="person-rating"></div>
     <div class="p-verdict" id="person-verdict"></div>
     <div class="table-scroll">
       <table>
@@ -903,6 +929,23 @@ const Ledger = {
     }
     return rec;
   },
+  // 撤销上一笔：真删除刚录的那条（本会话内），不是作废——作废是"记错了要留痕"，撤销是"手滑了"
+  removeById(id) {
+    const i = this.state.records.findIndex((r) => r.id === id);
+    if (i < 0) return null;
+    const [rec] = this.state.records.splice(i, 1);
+    this.save();
+    return rec;
+  },
+
+  // 今天录了多少
+  todaySummary() {
+    const today = Utils.today();
+    const live = this.live().filter((r) => (r.createdAt || "").slice(0, 10) === today || r.date === today);
+    const sum = live.reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    return { count: live.length, sum };
+  },
+
   toggleVoid(id) {
     const rec = this.state.records.find((r) => r.id === id);
     if (!rec) return null;
@@ -963,13 +1006,59 @@ const Ledger = {
     const map = new Map();
     for (const r of this.live()) {
       const key = r.name;
-      if (!map.has(key)) map.set(key, { name: key, in: 0, out: 0, count: 0, last: "" });
+      if (!map.has(key)) map.set(key, { name: key, in: 0, out: 0, count: 0, last: "", edited: false });
       const p = map.get(key);
       p[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
       p.count += 1;
+      if ((r.history || []).length) p.edited = true;
       if (!p.last || (r.date || "") > p.last) p.last = r.date || "";
     }
     return [...map.values()].map((p) => ({ ...p, net: p.in - p.out, total: p.in + p.out }));
+  },
+};
+
+/* ---------- Rating：对手方信用评级
+ * 五档 AAA / AA / A / BBB / CCC。评的是**账面行为**，不是人品——
+ * 话术只描述往来记录本身（DESIGN 决策：毒舌对事不对人）。
+ * -------------------------------------------------------------- */
+const Rating = {
+  GRADES: ["AAA", "AA", "A", "BBB", "CCC"],
+
+  score(p) {
+    const exposure = Math.max(0, p.out - p.in); // 他欠我的敞口
+    const stale = p.last ? Utils.yearsSince(p.last) : 0; // 最近一次往来距今
+    const marks = [];
+    let score = 70;
+
+    if (exposure > 0) {
+      const cut = Math.min(30, Math.round((exposure / 1000) * 8));
+      score -= cut;
+      marks.push({ w: cut, text: `敞口 ${Utils.formatCurrency(exposure)} 持续挂账` });
+      if (stale > 1) {
+        const c2 = Math.min(35, Math.round(stale * 10));
+        score -= c2;
+        marks.push({ w: c2, text: `距上次往来已 ${stale.toFixed(1)} 年，未见回收迹象` });
+      }
+    } else if (p.net > 0) {
+      score += 5;
+      marks.push({ w: 2, text: "该对手方为净债权方，履约记录良好" });
+    }
+
+    if (p.count >= 4) { score += 10; marks.push({ w: 4, text: `往来 ${p.count} 笔，履约记录连续` }); }
+    else if (p.count >= 2) { score += 4; marks.push({ w: 1, text: `往来 ${p.count} 笔` }); }
+
+    if (p.in > 0 && p.out > 0) { score += 8; marks.push({ w: 3, text: "双向往来完整，关系处于活跃状态" }); }
+    if (p.edited) { score -= 5; marks.push({ w: 5, text: "历史记录曾被修正，审计留痕已计入" }); }
+
+    const grade = score >= 85 ? "AAA" : score >= 72 ? "AA" : score >= 60 ? "A" : score >= 45 ? "BBB" : "CCC";
+    // 理由取权重最大的两条，一本正经地拼起来
+    const reason = marks.sort((a, b) => b.w - a.w).slice(0, 2).map((m) => m.text).join("；") || "往来记录过少，暂无充分评级依据";
+    return { grade, score: Math.max(0, Math.min(100, score)), reason: reason + "。" };
+  },
+
+  of(name) {
+    const p = Ledger.people().find((x) => x.name === name);
+    return p ? this.score(p) : null;
   },
 };
 
@@ -1372,6 +1461,7 @@ const VIEWS = ["overview", "rows", "people", "faq"];
 
 const UI = {
   view: "overview",
+  lastAdded: null, // 撤销上一笔用
   dir: "in",
   filter: "all",
   // 两张表各自的排序 / 翻页 / 搜索状态
@@ -1393,6 +1483,7 @@ const UI = {
     this.el("btn-reset").hidden = !IS_DEMO;
     this.bind();
     this.renderTags();
+    this.renderNameList();
     this.renderEventOptions();
     this.render();
     this.showView((location.hash || "").replace("#/", ""), false);
@@ -1411,6 +1502,21 @@ const UI = {
       this.el(id).addEventListener("keydown", (e) => {
         if (e.key === "Enter") this.tryAdd();
       });
+    });
+    this.el("amount-quick").addEventListener("click", (e) => {
+      const chip = e.target.closest("button[data-amount]");
+      if (!chip) return;
+      this.el("f-amount").value = chip.dataset.amount;
+      this.el("capital").textContent = `大写：${Utils.amountToChinese(chip.dataset.amount)}`;
+      this.el("f-name").focus();
+    });
+    this.el("btn-undo").addEventListener("click", () => {
+      if (!this.lastAdded) return;
+      const rec = Ledger.removeById(this.lastAdded);
+      this.lastAdded = null;
+      this.renderNameList();
+      this.render();
+      if (rec) this.el("today-sum").textContent = `已撤销：${rec.name} ${Utils.formatCurrency(rec.amount)}`;
     });
     this.el("btn-speak").addEventListener("click", () => {
       const name = this.el("f-name").value.trim();
@@ -1528,13 +1634,16 @@ const UI = {
     const sumOut = live.filter((r) => r.dir === "out").reduce((t, r) => t + (Number(r.amount) || 0), 0);
     const net = sumIn - sumOut;
 
-    this.el("person-name").textContent = name;
+    const rating = Rating.of(name);
+    this.el("person-name").innerHTML =
+      `${Utils.esc(name)}${rating ? ` <span class="grade g-${rating.grade}">${rating.grade}</span>` : ""}`;
     this.el("person-sum").innerHTML = [
       `<span>收到 <b style="color:var(--in)">${Utils.formatCurrency(sumIn)}</b></span>`,
       `<span>送出 <b style="color:var(--out)">${Utils.formatCurrency(sumOut)}</b></span>`,
       `<span>净额 <b>${Utils.formatCurrency(net)}</b></span>`,
       `<span>${live.length} 笔往来</span>`,
     ].join("");
+    this.el("person-rating").textContent = rating ? `评级依据：${rating.reason}` : "";
     this.el("person-verdict").textContent =
       net > 0
         ? `你欠${name}的人情 ${Utils.formatCurrency(net)}。下次他家办事，这就是起步价。`
@@ -1659,6 +1768,17 @@ const UI = {
     input.focus();
   },
 
+  renderNameList() {
+    const names = [...new Set(Ledger.all().map((r) => r.name))].filter(Boolean);
+    this.el("name-list").innerHTML = names.map((n) => `<option value="${Utils.esc(n)}"></option>`).join("");
+  },
+
+  renderToday() {
+    const t = Ledger.todaySummary();
+    this.el("today-sum").textContent = t.count ? `今天已录 ${t.count} 笔 · 合计 ${Utils.formatCurrency(t.sum)}` : "";
+    this.el("btn-undo").hidden = !this.lastAdded;
+  },
+
   renderTags() {
     TAG_GROUPS.forEach((g) => {
       const { builtin, custom } = Ledger.tags(g.key);
@@ -1726,13 +1846,15 @@ const UI = {
   },
 
   commit(entry) {
-    Ledger.add({ ...entry, dir: this.dir });
+    const rec = Ledger.add({ ...entry, dir: this.dir });
+    this.lastAdded = rec.id;
     this.el("f-name").value = "";
     this.el("f-amount").value = "";
     this.el("f-note").value = "";
     this.el("capital").textContent = "";
     this.el("f-name").focus();
     this.renderEventOptions(); // 可能刚新建了事项
+    this.renderNameList();
     this.render();
   },
 
@@ -1760,6 +1882,7 @@ const UI = {
     Charts.renderAll();
     this.renderPeople();
     this.renderRows();
+    this.renderToday();
   },
 
   renderAbsurd() {
@@ -1801,6 +1924,7 @@ const UI = {
         <td class="amount">${Utils.formatCurrency(p.net)}</td>
         <td class="amount">${p.count}</td>
         <td class="note">${Utils.esc(p.last) || "—"}</td>
+        <td><span class="grade g-${Rating.score(p).grade}">${Rating.score(p).grade}</span></td>
       </tr>`
       )
       .join("");
