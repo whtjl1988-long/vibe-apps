@@ -739,7 +739,7 @@
   <footer>
     本软件基于开源项目 <a href="https://github.com/jingguanzhang/gift-book" target="_blank" rel="noopener">jingguanzhang/gift-book</a>（电子礼簿系统，1284★）改造，
     复用其金额大写算法、重名检测与导出逻辑；人情往来模型与荒诞层为本项目新写。<br>
-    「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品。数据只在你自己的浏览器里，不上传任何服务器。
+    「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品 · <span id="app-version">v1.0.0</span>。数据只在你自己的浏览器里，不上传任何服务器。
   </footer>
 </div>
 
@@ -1639,7 +1639,7 @@ const Exporter = {
   },
 
   json() {
-    const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
+    const payload = { app: "renqing-debt", appVersion: "1.0.0", version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
