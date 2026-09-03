@@ -22,10 +22,26 @@ npm test          # Playwright 打本地 wrangler dev，用 wrangler.test.toml �
 cp wrangler.example.toml wrangler.toml   # 填自己的 Worker 名
 npx wrangler secret put AUTH_USER        # 交互式输入，不落任何文件
 npx wrangler secret put AUTH_PASSWORD
+openssl rand -base64 32 | npx wrangler secret put SESSION_SECRET
 npx wrangler deploy
 ```
 
 把要跑的静态页放进 `public/`。
+
+## 进门有两条路
+
+1. **会话 cookie** —— 免输密码，日常走这条
+2. **Basic Auth** —— 第一次、或会话过期时走这条，成功后自动换一张 cookie（120 天）
+
+第一条不是为了省事，是为了这东西能被真的用起来：**iOS Safari 的 Basic Auth 弹框是原生对话框，密码 App 的自动填充在它上面不生效**——只有 Basic 的话，强密码等于每次都在手机上手输一遍。
+
+cookie 是 `__Host-` 前缀 + `HttpOnly` + `Secure` + `SameSite=Lax`，内容用 HMAC-SHA256 签名。
+验签在解析之前，签名不对就直接出局，绝不去 `JSON.parse` 一段来路不明的内容。
+
+`SESSION_SECRET` 不配也能跑，只是退回「每次都输密码」——**门不会因此敞开**。
+换掉它 = 所有已发出的会话立刻失效，也就是一键把所有设备踢下线。
+
+`/logout` 清掉会话。注意浏览器可能仍缓存着 Basic 凭据，要彻底退出得关掉浏览器。
 
 ## 一个不能省的配置
 

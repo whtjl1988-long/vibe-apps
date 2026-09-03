@@ -4,9 +4,13 @@
  * 「云端版」是**自托管态**的一种——你自己部署、自己拿钥匙（见 CONTEXT.md）。
  * 培然同学自己那一份实例才叫**私有云态**。
  *
- * 两件事，就这两件：
- *   1. 每个请求先过 authenticate()，不通过一律 401
- *   2. 通过了才把请求交给静态资源
+ * 进门有两条路：
+ *   1. 会话 cookie —— 免输密码，日常走这条
+ *   2. Basic Auth  —— 第一次、或会话过期时走这条，成功后换一张会话 cookie
+ *
+ * 为什么非要有第一条：iOS Safari 的 Basic Auth 弹框是**原生对话框**，
+ * 密码 App 的自动填充在它上面不生效。只有 Basic 的话，强密码等于每次
+ * 都要在手机上手输一遍——而这东西的使用场景是「在婚礼现场掏出手机记一笔」。
  *
  * 账本读写（KV）不在这一层，见 T2。
  */
@@ -18,25 +22,102 @@ const REALM = "Private";
 // T2 会拿它当账本 KV key 的前缀（`u/<标识>/...`），多用户时这里才会变。
 const USER_ID = "me";
 
+// `__Host-` 前缀是浏览器强制的最严档：必须 Secure、必须 Path=/、不许带 Domain，
+// 且不能被同站的其他子域覆写。
+const COOKIE = "__Host-session";
+
+// 120 天。使用场景是一年几次的红白事，有效期短了等于没做这一层。
+const SESSION_MAX_AGE = 120 * 24 * 3600;
+
 export default {
   async fetch(request, env) {
-    if (!(await authenticate(request, env))) return unauthorized();
+    // 退出登录不需要先登录：它只做「清掉凭证」这一件事
+    if (new URL(request.url).pathname === "/logout") return logout();
+
+    const session = await authenticate(request, env);
+    if (!session) return unauthorized();
 
     const res = await env.ASSETS.fetch(request);
-    // 门后的东西是私人的：别让任何中间层替我缓存
     const out = new Response(res.body, res);
+    // 门后的东西是私人的：别让任何中间层替我缓存
     out.headers.set("Cache-Control", "private, no-cache");
+
+    // 刚用密码进来的，换一张通行证，下次免输
+    if (session.via === "basic" && env.SESSION_SECRET) {
+      out.headers.append("Set-Cookie", await mintSession(session.user, env.SESSION_SECRET));
+    }
     return out;
   },
 };
 
 /**
- * 唯一的认证入口：返回用户标识，或 null 表示拒绝。
+ * 唯一的认证入口：返回 `{ user, via }`，或 null 表示拒绝。
  *
- * 今天的实现是「比对配置好的那一对凭据，返回定值标识」。将来换成用户表、
- * SSO 或别的什么，只改这个函数——调用方拿到的仍是一个用户标识，一行都不用动。
+ * 多了一条 cookie 路径，但入口仍然只有这一个——调用方永远只问这一个函数
+ * 「这个请求是谁」。将来换成用户表、SSO 或别的什么，改的还是这里。
  */
 async function authenticate(request, env) {
+  const viaCookie = await userFromSession(request, env);
+  if (viaCookie) return { user: viaCookie, via: "cookie" };
+
+  const viaBasic = await userFromBasicAuth(request, env);
+  if (viaBasic) return { user: viaBasic, via: "basic" };
+
+  return null;
+}
+
+/* ---------- 路径一：会话 cookie ---------- */
+
+/**
+ * 验签在前、解析在后：签名不对就直接出局，绝不去 JSON.parse 一段来路不明的内容。
+ * 换掉 SESSION_SECRET 会让所有旧 cookie 立刻验签失败——这就是密钥轮换。
+ */
+async function userFromSession(request, env) {
+  if (!env.SESSION_SECRET) return null;
+
+  const raw = readCookie(request, COOKIE);
+  if (!raw) return null;
+
+  const dot = raw.indexOf(".");
+  if (dot < 0) return null;
+  const body = raw.slice(0, dot);
+  const sig = raw.slice(dot + 1);
+
+  const expected = await hmac(body, env.SESSION_SECRET);
+  if (!(await digestEqual(sig, expected))) return null;
+
+  let payload;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(base64urlToBytes(body)));
+  } catch {
+    return null;
+  }
+
+  if (typeof payload?.exp !== "number" || payload.exp * 1000 <= Date.now()) return null;
+  if (payload.u !== USER_ID) return null;
+
+  return payload.u;
+}
+
+async function mintSession(user, secret) {
+  const exp = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE;
+  const body = bytesToBase64url(new TextEncoder().encode(JSON.stringify({ u: user, exp })));
+  const sig = await hmac(body, secret);
+  return `${COOKIE}=${body}.${sig}; Max-Age=${SESSION_MAX_AGE}; Path=/; Secure; HttpOnly; SameSite=Lax`;
+}
+
+function readCookie(request, name) {
+  for (const part of (request.headers.get("Cookie") || "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }
+  return null;
+}
+
+/* ---------- 路径二：Basic Auth ---------- */
+
+async function userFromBasicAuth(request, env) {
   // 凭据没配好就一律拒绝。宁可谁都进不来，也不能因为忘了设 secret 就敞开。
   if (!env.AUTH_USER || !env.AUTH_PASSWORD) return null;
 
@@ -64,14 +145,38 @@ async function authenticate(request, env) {
   return okUser && okPass ? USER_ID : null;
 }
 
+/* ---------- 编码与比较 ---------- */
+
 /**
  * atob() 吐出的是「一字符一字节」的 binary string。把它直接当文本用，
  * 非 ASCII 会被二次 UTF-8 编码——中文密码将永远对不上，且毫无提示
  * （401 里我们还发了 charset="UTF-8"，等于请浏览器就这么发）。必须按字节解回来。
  */
 function utf8FromBase64(b64) {
-  const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)));
+}
+
+function bytesToBase64url(bytes) {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64urlToBytes(str) {
+  const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+}
+
+async function hmac(text, secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
+  return bytesToBase64url(new Uint8Array(sig));
 }
 
 /**
@@ -88,6 +193,8 @@ async function sha256(text) {
   return new Uint8Array(buf);
 }
 
+/* ---------- 响应 ---------- */
+
 /** 401：只说「要登录」，不透露里面有什么 */
 function unauthorized() {
   return new Response("401 Unauthorized\n", {
@@ -98,4 +205,23 @@ function unauthorized() {
       "Cache-Control": "no-store",
     },
   });
+}
+
+/**
+ * 退出登录：清掉会话 cookie，并用 401 让浏览器重新要凭据。
+ * 说句实话——浏览器可能仍缓存着 Basic 的用户名密码，那不归这里管，所以文案里讲明。
+ */
+function logout() {
+  return new Response(
+    "已退出登录。\n\n浏览器可能还记着 Basic Auth 的用户名密码；要彻底退出，关掉浏览器再打开。\n",
+    {
+      status: 401,
+      headers: {
+        "Set-Cookie": `${COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        "WWW-Authenticate": `Basic realm="${REALM}", charset="UTF-8"`,
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    },
+  );
 }
