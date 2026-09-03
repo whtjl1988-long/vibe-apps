@@ -368,6 +368,14 @@
 
   /* 分享 */
   #share-btn { position: fixed; top: 20px; right: 20px; z-index: 40; font-size: 14px; letter-spacing: -0.224px; padding: 8px 18px; }
+  /* 返回作品墙（规则 10 模板约定：每个软件都要有） */
+  #back-link {
+    position: fixed; top: 20px; left: 20px; z-index: 40;
+    font-size: 14px; letter-spacing: -0.224px; line-height: 1.29; text-decoration: none;
+    padding: 8px 16px; border-radius: var(--r-pill);
+    background: var(--pearl); color: var(--ink-80); border: 1px solid var(--divider-soft);
+  }
+  #back-link:hover { border-color: var(--primary); color: var(--primary); }
 
   /* 弹层：无阴影，靠背景模糊与发丝线分层 */
   .overlay {
@@ -471,6 +479,7 @@
 </style>
 </head>
 <body>
+<a id="back-link" href="https://vibe-all.com/apps/">← 作品墙</a>
 <button id="share-btn" type="button">分享</button>
 <header>
   <div class="wrap">
