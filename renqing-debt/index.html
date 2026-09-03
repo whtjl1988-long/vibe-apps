@@ -280,6 +280,45 @@
   .pager button:disabled { color: var(--ink-48); cursor: default; opacity: 0.5; }
   .pager .pos { font-variant-numeric: tabular-nums; }
 
+  /* 测算向导 */
+  .wiz-steps { display: flex; gap: 6px; margin-bottom: 24px; }
+  .wiz-steps i { flex: 1; height: 3px; background: var(--divider-soft); border-radius: 2px; }
+  .wiz-steps i.on { background: var(--primary); }
+  .wiz-step h3 { font-family: var(--font-display); font-size: 28px; font-weight: 600; letter-spacing: -0.28px; margin-bottom: 8px; }
+  .wiz-step .note { font-size: 14px; letter-spacing: -0.224px; margin-bottom: 17px; }
+  .wiz-step input { width: 100%; max-width: 320px; }
+  .wiz-found { margin-top: 17px; font-size: 14px; letter-spacing: -0.224px; color: var(--ink-80); }
+  .wiz-found b { font-weight: 600; }
+  .wiz-found .dim { color: var(--ink-48); font-size: 12px; letter-spacing: -0.12px; display: block; margin-top: 6px; }
+  .wiz-actions { display: flex; gap: 12px; margin-top: 32px; }
+  .chip[aria-pressed="true"] { border: 2px solid var(--primary-focus); padding: 7px 15px; color: var(--primary); }
+
+  /* 测算结果 */
+  .adv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 17px; margin-bottom: 17px; }
+  .adv-card { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 24px; text-align: center; }
+  .adv-card.on { border: 2px solid var(--primary); padding: 23px; }
+  .adv-card .k { font-size: 14px; letter-spacing: -0.224px; color: var(--ink-48); }
+  .adv-card .v {
+    font-family: var(--font-display); font-size: 28px; font-weight: 600; letter-spacing: -0.28px;
+    margin: 8px 0 6px; font-variant-numeric: tabular-nums;
+  }
+  .adv-card.on .v { color: var(--primary); }
+  .adv-card .why { font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48); line-height: 1.5; }
+  .adv-basis { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 24px; margin-bottom: 17px; }
+  .adv-basis h4 { font-size: 14px; font-weight: 600; letter-spacing: -0.224px; color: var(--ink-48); margin-bottom: 12px; }
+  .adv-basis li { list-style: none; font-size: 14px; letter-spacing: -0.224px; color: var(--ink-80); padding: 8px 0; border-bottom: 1px solid var(--divider-soft); }
+  .adv-basis li:last-child { border-bottom: none; }
+  .adv-basis li b { font-weight: 600; color: var(--ink); }
+  .adv-none { background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 24px; }
+  .adv-none .big { font-size: 21px; font-weight: 600; letter-spacing: 0.231px; margin-bottom: 8px; }
+  .adv-legal {
+    background: var(--pearl); border: 1px solid var(--divider-soft); border-radius: var(--r-lg);
+    padding: 20px 24px; font-size: 12px; letter-spacing: -0.12px; line-height: 1.7; color: var(--ink-48);
+  }
+  .adv-legal .sign { display: block; margin-top: 12px; color: var(--ink-80); font-size: 14px; letter-spacing: -0.224px; }
+  .adv-tiers { margin-top: 17px; font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48); }
+  .adv-tiers input { width: 100%; max-width: 460px; margin-top: 8px; font-size: 14px; }
+
   /* FAQ */
   #faq-cats { margin: 0 0 17px; }
   .faq-item {
@@ -420,6 +459,8 @@
     .stat .v { font-size: 28px; }
     .absurd-grid { grid-template-columns: 1fr; }
     .board { grid-template-columns: 1fr; }
+    .adv { grid-template-columns: 1fr; }
+    .wiz-step h3 { font-size: 21px; }
     .tabs { gap: 6px; }
     .tab { padding: 9px 14px; }
     .absurd-head, .metric, .absurd-note { padding-left: 24px; padding-right: 24px; }
@@ -503,6 +544,7 @@
     <button type="button" class="tab" role="tab" data-view="overview">总览</button>
     <button type="button" class="tab" role="tab" data-view="rows">明细</button>
     <button type="button" class="tab" role="tab" data-view="people">关系人</button>
+    <button type="button" class="tab" role="tab" data-view="advice">测算</button>
     <button type="button" class="tab" role="tab" data-view="faq">FAQ</button>
   </nav>
 
@@ -623,6 +665,48 @@
     <div class="pager" id="rows-pager"></div>
   </section>
 
+  </div>
+
+  <div class="view" id="view-advice">
+    <section>
+      <h2>该随多少 <span class="hint">（问你四个问题，然后按你自己的账本给一个区间）</span></h2>
+      <div class="card wiz">
+        <div class="wiz-steps" id="wiz-steps"></div>
+
+        <div class="wiz-step" data-step="1">
+          <h3>1 / 4　给谁随？</h3>
+          <p class="note">填名字。如果账本里有他，我就不再问你们的往来了。</p>
+          <input type="text" id="wiz-name" list="name-list" autocomplete="off" placeholder="二舅">
+          <div class="wiz-found" id="wiz-found"></div>
+        </div>
+
+        <div class="wiz-step" data-step="2" hidden>
+          <h3>2 / 4　什么事？</h3>
+          <p class="note">只影响提示，不影响金额算法。</p>
+          <div class="presets" id="wiz-occasions"></div>
+        </div>
+
+        <div class="wiz-step" data-step="3" hidden>
+          <h3>3 / 4　什么关系？</h3>
+          <p class="note">账本里认得出来的会预先选好；新人必须选一个，否则没有可比的人。</p>
+          <div class="presets" id="wiz-relations"></div>
+        </div>
+
+        <div class="wiz-step" data-step="4" hidden>
+          <h3>4 / 4　你们那儿的起步价是多少？</h3>
+          <p class="note">这是本系统唯一不可能知道的东西——地域行情。填一次就记住，可以不填。</p>
+          <input type="number" id="wiz-baseline" min="0" step="50" placeholder="比如 500">
+        </div>
+
+        <div class="wiz-actions">
+          <button class="ghost" id="wiz-back" hidden>上一步</button>
+          <button id="wiz-next">下一步</button>
+          <button class="ghost" id="wiz-restart" hidden>重新测算</button>
+        </div>
+      </div>
+
+      <div id="wiz-result" hidden></div>
+    </section>
   </div>
 
   <div class="view" id="view-faq">
@@ -912,12 +996,19 @@ const TAG_GROUPS = [
 ];
 const defaultTags = () => ({ relation: [], method: [] }); // 只存自定义部分，内置的写死在上面
 
+// 测算用的档位表与假定涨幅（Ledger 的初始状态会引用，必须先声明）
+const DEFAULT_TIERS = [100, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000, 5000];
+const INFLATION = 0.05; // 本系统假定的年化人情涨幅，仅用于提醒
+
+const OCCASIONS = ["结婚", "满月/百天", "乔迁", "升学", "大寿", "生日", "开业", "白事"];
+
+
 const Ledger = {
-  state: { version: 2, events: [DEFAULT_EVENT], records: [], tags: defaultTags() },
+  state: { version: 2, events: [DEFAULT_EVENT], records: [], tags: defaultTags(), settings: { baseline: 0, tiers: DEFAULT_TIERS.slice() } },
 
   load(seed) {
     const stored = Store.read();
-    const base = stored || seed || { version: 2, events: [DEFAULT_EVENT], records: [], tags: defaultTags() };
+    const base = stored || seed || { version: 2, events: [DEFAULT_EVENT], records: [], tags: defaultTags(), settings: {} };
     this.state = this.migrate(base);
     if (!stored && seed) this.save();
   },
@@ -938,7 +1029,12 @@ const Ledger = {
       relation: Array.isArray(t.relation) ? t.relation : [],
       method: Array.isArray(t.method) ? t.method : [],
     };
-    return { version: 2, events, records, tags };
+    const st = state.settings && typeof state.settings === "object" ? state.settings : {};
+    const settings = {
+      baseline: Number(st.baseline) || 0,
+      tiers: Array.isArray(st.tiers) && st.tiers.length ? st.tiers.map(Number).filter(Boolean) : DEFAULT_TIERS.slice(),
+    };
+    return { version: 2, events, records, tags, settings };
   },
   save() {
     Store.write(this.state);
@@ -1543,7 +1639,7 @@ const Exporter = {
   },
 
   json() {
-    const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags };
+    const payload = { version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1567,6 +1663,117 @@ const Exporter = {
     UI.renderEventOptions();
     UI.render();
     alert(`已导入 ${data.records.length} 条记录。`);
+  },
+};
+
+/* ---------- Advice：公允价值测算（该随多少）
+ * 口径（grill 定稿）：
+ *   · 他随过我 → 对等回礼：下限取他最近随我的那一笔
+ *   · 新人     → 同侪基准：该关系板块我历史送出的中位数；板块也没数据 → 用当地起步价
+ *   · 都没有   → 明说给不出，不编数字
+ * 通胀不进建议值，只按 5%/年 给一句折算提醒（并写明比例是本系统假定）。
+ * 三挡区间：保守 / 公允 / 排面，默认停在公允——多花钱的选择权交给用户，不由系统劝。
+ * 民俗：区间自动剔掉含 4 的档位（几乎无争议）；喜事双数只提示不改数（争议大）。
+ * -------------------------------------------------------------- */
+const Advice = {
+  tiers() {
+    const t = (Ledger.state.settings && Ledger.state.settings.tiers) || DEFAULT_TIERS;
+    return t.filter((n) => !/4/.test(String(n))); // 民俗：含 4 的档位直接不出现在建议里
+  },
+  baseline() {
+    return (Ledger.state.settings && Ledger.state.settings.baseline) || 0;
+  },
+
+  nextTier(v, step) {
+    const t = this.tiers();
+    let i = t.findIndex((x) => x >= v);
+    if (i < 0) i = t.length - 1;
+    return t[Math.min(t.length - 1, i + (step || 0))];
+  },
+
+  median(nums) {
+    const a = nums.slice().sort((x, y) => x - y);
+    const m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2);
+  },
+
+  // 同一关系板块里我历史送出的中位数
+  peerMedian(relation) {
+    if (!relation) return 0;
+    const peers = Ledger.live().filter((r) => r.dir === "out" && (r.note || "").includes(relation));
+    return peers.length ? { value: this.median(peers.map((r) => Number(r.amount) || 0)), count: peers.length } : 0;
+  },
+
+  compute({ name, occasion, relation }) {
+    const basis = [];
+    let base = 0;
+    let source = "";
+
+    // ① 他随过我？（对等回礼）
+    const his = Ledger.live()
+      .filter((r) => r.name === name && r.dir === "in")
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    if (his.length) {
+      const latest = his[0];
+      base = Number(latest.amount) || 0;
+      source = "对等回礼";
+      basis.push(`账本查到：<b>${Utils.esc(name)}</b> 在 ${latest.date} 随过你 <b>${Utils.formatCurrency(base)}</b>（${Ledger.eventName(latest.eventId)}）。`);
+      if (his.length > 1) {
+        basis.push(`他一共随过你 ${his.length} 笔，合计 ${Utils.formatCurrency(his.reduce((t, r) => t + (+r.amount || 0), 0))}。这里取最近的一笔当下限。`);
+      }
+      const years = Utils.yearsSince(latest.date);
+      if (years >= 1) {
+        const adj = Math.round(base * Math.pow(1 + INFLATION, years));
+        basis.push(`那笔已过 <b>${years.toFixed(1)} 年</b>。按每年 ${Math.round(INFLATION * 100)}% 折算，今天约相当于 <b>${Utils.formatCurrency(adj)}</b>。<span class="dim">折算比例为本系统假定，不进建议值，只供你自己判断要不要往上加。</span>`);
+      }
+    }
+
+    // 对等回礼时，如果你在这个板块的常规水平明显更高，把对照摆出来——数字不改，风险自负要有依据
+    if (base && source === "对等回礼") {
+      const peer = this.peerMedian(relation);
+      if (peer && peer.value >= base * 1.5) {
+        basis.push(`对照：你在「<b>${Utils.esc(relation)}</b>」板块的中位数是 <b>${Utils.formatCurrency(peer.value)}</b>，明显高于这一档。<span class="dim">本测算按「对等回礼」口径给数，不替你取高——但这个差距你自己得掂量。</span>`);
+      }
+    }
+
+    // ② 新人 → 同侪基准（该关系板块历史送出中位数）
+    if (!base) {
+      const peer = this.peerMedian(relation);
+      if (peer) {
+        base = peer.value;
+        source = "同侪基准";
+        basis.push(`账本里没有<b>${Utils.esc(name)}</b>随过你的记录。改用同侪基准：你在「<b>${Utils.esc(relation)}</b>」板块随出去过 ${peer.count} 笔，中位数 <b>${Utils.formatCurrency(base)}</b>。`);
+      }
+    }
+
+    // ③ 兜底：当地起步价
+    if (!base && this.baseline()) {
+      base = this.baseline();
+      source = "当地起步价";
+      basis.push(`账本里既没有他的记录，「${Utils.esc(relation || "该关系")}」板块也没有可比数据。改用你填的当地起步价 <b>${Utils.formatCurrency(base)}</b>。`);
+    }
+
+    if (!base) {
+      return {
+        ok: false,
+        why: "账本里没有可比数据：他没随过你，这个关系板块也没有往来记录，你也还没填当地起步价。",
+        tip: "最靠得住的办法是问一个跟你关系相当、也去的人随了多少——跟着走最稳。",
+      };
+    }
+
+    const b0 = this.nextTier(base, 0);
+    const tiers = {
+      保守: [b0, this.nextTier(b0 + 1, 0)],
+      公允: [this.nextTier(b0 + 1, 0), this.nextTier(b0 + 1, 1)],
+      排面: [this.nextTier(b0 + 1, 1), this.nextTier(b0 + 1, 2)],
+    };
+
+    const folk = [];
+    if (/白事/.test(occasion || "")) folk.push("白事场合，很多地方<b>忌双数</b>（各地不同）。");
+    else if (occasion) folk.push("喜事场合，很多地方讲究<b>好事成双</b>、随双数（各地不同）。");
+    folk.push("建议区间已自动剔掉含数字 <b>4</b> 的档位。");
+
+    return { ok: true, source, base, tiers, basis, folk, occasion, relation, name };
   },
 };
 
@@ -1853,12 +2060,13 @@ const DIR_HINT = {
 
 const PAGE_SIZE = 10; // 一页 10 条，多了翻页
 
-const VIEWS = ["overview", "rows", "people", "faq"];
+const VIEWS = ["overview", "rows", "people", "advice", "faq"];
 
 const UI = {
   view: "overview",
   lastAdded: null, // 撤销上一笔用
   faq: { q: "", cat: "all" },
+  wiz: { step: 1, name: "", occasion: "", relation: "", baseline: "" },
   dir: "in",
   filter: "all",
   // 两张表各自的排序 / 翻页 / 搜索状态
@@ -1881,6 +2089,7 @@ const UI = {
     this.bind();
     this.renderTags();
     this.renderFaq();
+    this.wizRender();
     this.renderNameList();
     this.renderEventOptions();
     this.render();
@@ -1900,6 +2109,25 @@ const UI = {
       this.el(id).addEventListener("keydown", (e) => {
         if (e.key === "Enter") this.tryAdd();
       });
+    });
+    this.el("wiz-name").addEventListener("input", () => this.wizLookup());
+    this.el("wiz-next").addEventListener("click", () => this.wizNext());
+    this.el("wiz-back").addEventListener("click", () => {
+      this.wiz.step = Math.max(1, this.wiz.step - 1);
+      this.wizRender();
+    });
+    this.el("wiz-restart").addEventListener("click", () => this.wizRestart());
+    this.el("wiz-occasions").addEventListener("click", (e) => {
+      const c = e.target.closest("button[data-occ]");
+      if (!c) return;
+      this.wiz.occasion = c.dataset.occ;
+      this.wizRender();
+    });
+    this.el("wiz-relations").addEventListener("click", (e) => {
+      const c = e.target.closest("button[data-rel]");
+      if (!c) return;
+      this.wiz.relation = c.dataset.rel;
+      this.wizRender();
     });
     this.el("faq-q").addEventListener("input", (e) => {
       this.faq.q = e.target.value;
@@ -2196,6 +2424,138 @@ const UI = {
     if (val.split("·").map((x) => x.trim()).includes(word)) return; // 已经有了就不重复加
     input.value = val ? `${val} · ${word}` : word;
     input.focus();
+  },
+
+  // ---------- 测算向导 ----------
+  wizRender() {
+    const w = this.wiz;
+    this.el("wiz-steps").innerHTML = [1, 2, 3, 4].map((i) => `<i class="${i <= w.step ? "on" : ""}"></i>`).join("");
+    document.querySelectorAll(".wiz-step").forEach((el) => {
+      el.hidden = Number(el.dataset.step) !== w.step;
+    });
+    this.el("wiz-back").hidden = w.step === 1;
+    this.el("wiz-next").textContent = w.step === 4 ? "出结果" : "下一步";
+
+    // 场合
+    this.el("wiz-occasions").innerHTML =
+      `<span class="preset-label">场合</span>` +
+      OCCASIONS.map((o) => `<button type="button" class="chip" data-occ="${o}" aria-pressed="${String(o === w.occasion)}">${o}</button>`).join("");
+    // 关系
+    const rel = Ledger.tags("relation");
+    this.el("wiz-relations").innerHTML =
+      `<span class="preset-label">关系</span>` +
+      [...rel.builtin, ...rel.custom]
+        .map((r) => `<button type="button" class="chip" data-rel="${Utils.esc(r)}" aria-pressed="${String(r === w.relation)}">${Utils.esc(r)}</button>`)
+        .join("");
+    this.el("wiz-baseline").value = w.baseline || Advice.baseline() || "";
+  },
+
+  wizLookup() {
+    const name = this.el("wiz-name").value.trim();
+    const box = this.el("wiz-found");
+    if (!name) return (box.innerHTML = "");
+    const his = Ledger.live().filter((r) => r.name === name && r.dir === "in");
+    const p = Ledger.people().find((x) => x.name === name);
+    if (!p) return (box.innerHTML = `<span class="dim">账本里还没有这个人，稍后会按关系板块给你参考。</span>`);
+    // 账本里已经知道的，就不再问
+    const guessed = [...Ledger.tags("relation").builtin, ...Ledger.tags("relation").custom].find((r) =>
+      Ledger.byPerson(name).some((rec) => (rec.note || "").includes(r))
+    );
+    if (guessed) this.wiz.relation = guessed;
+    const r = Rating.score(p);
+    box.innerHTML =
+      `账本查到：往来 <b>${p.count}</b> 笔，他随过你 <b>${Utils.formatCurrency(p.in)}</b>，你随过他 <b>${Utils.formatCurrency(p.out)}</b>，评级 <b>${r.grade}</b>。` +
+      (his.length ? "" : `<span class="dim">他没随过你，将改用同侪基准。</span>`) +
+      (guessed ? `<span class="dim">关系已从备注里认出来：${Utils.esc(guessed)}（下一步可改）。</span>` : "");
+  },
+
+  wizNext() {
+    const w = this.wiz;
+    if (w.step === 1) {
+      w.name = this.el("wiz-name").value.trim();
+      if (!w.name) return alert("先填个名字。");
+    }
+    if (w.step === 3 && !w.relation) {
+      const his = Ledger.live().some((r) => r.name === w.name && r.dir === "in");
+      if (!his) return alert("这个人账本里没有往来记录，必须选一个关系，否则没有可比的人。");
+    }
+    if (w.step === 4) {
+      const v = Number(this.el("wiz-baseline").value) || 0;
+      Ledger.state.settings.baseline = v; // 填一次记住
+      Ledger.save();
+      return this.wizResult();
+    }
+    w.step += 1;
+    this.wizRender();
+  },
+
+  wizResult() {
+    const w = this.wiz;
+    const r = Advice.compute(w);
+    this.el("wiz-result").hidden = false;
+    this.el("wiz-restart").hidden = false;
+    this.el("wiz-next").hidden = true;
+    this.el("wiz-back").hidden = true;
+
+    const legal = `<div class="adv-legal">
+      本测算仅基于阁下账本内的历史往来数据，未考虑地域习俗、场合规格、双方经济状况及一切人情世故；
+      建议区间由档位表推算而来，不构成任何形式的建议、承诺或担保；据此产生的任何社交后果，本系统概不负责。
+      <span class="sign">算得出来的是钱，算不出来的是人情。你自己拿主意。</span>
+    </div>`;
+
+    if (!r.ok) {
+      this.el("wiz-result").innerHTML = `<div class="adv-none">
+        <p class="big">这次给不出建议。</p>
+        <p class="note">${r.why}</p>
+        <p class="note" style="margin-top:12px">${r.tip}</p>
+      </div>${legal}`;
+      return;
+    }
+
+    const cards = Object.entries(r.tiers)
+      .map(([k, [lo, hi]]) => {
+        const why = { 保守: "按他随你的那一档", 公允: "往上一档，最不容易失礼", 排面: "本模式假定阁下需要在场面上占据主动" }[k];
+        // 撞到档位表顶端时两端相同，写成「起」而不是「¥5,000–¥5,000」
+        const range = lo === hi ? `${Utils.formatCurrency(lo)} 起` : `${Utils.formatCurrency(lo)}–${Utils.formatCurrency(hi)}`;
+        return `<div class="adv-card ${k === "公允" ? "on" : ""}">
+          <div class="k">${k}</div>
+          <div class="v">${range}</div>
+          <div class="why">${why}</div>
+        </div>`;
+      })
+      .join("");
+
+    this.el("wiz-result").innerHTML = `
+      <div class="adv">${cards}</div>
+      <div class="adv-basis">
+        <h4>测算依据（口径：${r.source}）</h4>
+        <ul>${r.basis.map((b) => `<li>${b}</li>`).join("")}${r.folk.map((f) => `<li>${f}</li>`).join("")}</ul>
+        <div class="adv-tiers">
+          档位表（逗号分隔，含 4 的档位会被自动跳过）
+          <input type="text" id="wiz-tiers" value="${Advice.tiers().join(", ")}">
+        </div>
+      </div>
+      ${legal}`;
+
+    this.el("wiz-tiers").addEventListener("change", (e) => {
+      const t = e.target.value.split(/[,，\s]+/).map(Number).filter((n) => n > 0);
+      if (t.length) {
+        Ledger.state.settings.tiers = t.sort((a, b) => a - b);
+        Ledger.save();
+        this.wizResult();
+      }
+    });
+  },
+
+  wizRestart() {
+    this.wiz = { step: 1, name: "", occasion: "", relation: "", baseline: "" };
+    this.el("wiz-name").value = "";
+    this.el("wiz-found").innerHTML = "";
+    this.el("wiz-result").hidden = true;
+    this.el("wiz-result").innerHTML = "";
+    this.el("wiz-restart").hidden = true;
+    this.el("wiz-next").hidden = false;
+    this.wizRender();
   },
 
   renderFaq() {
