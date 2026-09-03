@@ -69,10 +69,24 @@ test("静态资源不绕过登录墙", async ({ request }) => {
 
 // 上一条只能证明「测试用的那份配置」是对的。真部署用的是别的 toml，
 // 谁把那一行删了，上面的测试照样全绿。所以这里直接读配置文件断言。
+const CONFIGS = ["wrangler.test.toml", "wrangler.example.toml", "wrangler.nosession.toml"];
+const readConfig = (f: string) => readFileSync(path.resolve(__dirname, "..", f), "utf8");
+
 test("每一份 wrangler 配置都开着 run_worker_first", () => {
-  for (const file of ["wrangler.test.toml", "wrangler.example.toml"]) {
-    const text = readFileSync(path.resolve(__dirname, "..", file), "utf8");
-    expect(text, `${file} 缺 run_worker_first，登录墙会被静态资源绕过`)
+  // 漏掉任何一份，那份配置起的实例就会被静态资源绕过登录墙——
+  // 新增配置文件时必须同步加进这个数组
+  for (const file of CONFIGS) {
+    expect(readConfig(file), `${file} 缺 run_worker_first，登录墙会被静态资源绕过`)
       .toMatch(/^\s*run_worker_first\s*=\s*true\s*$/m);
+  }
+});
+
+test("两份测试配置的凭据一致", () => {
+  // wrangler.nosession.toml 是 wrangler.test.toml 的副本（只去掉签名密钥）。
+  // 凭据漂了的话，「没配密钥」那条测试会用错的密码去敲门，绿得毫无意义。
+  const pick = (text: string, key: string) => text.match(new RegExp(`^${key}\\s*=\\s*(.+)$`, "m"))?.[1].trim();
+  for (const key of ["AUTH_USER", "AUTH_PASSWORD"]) {
+    expect(pick(readConfig("wrangler.nosession.toml"), key), `${key} 在两份测试配置里不一致`)
+      .toBe(pick(readConfig("wrangler.test.toml"), key));
   }
 });

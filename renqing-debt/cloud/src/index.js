@@ -29,6 +29,10 @@ const COOKIE = "__Host-session";
 // 120 天。使用场景是一年几次的红白事，有效期短了等于没做这一层。
 const SESSION_MAX_AGE = 120 * 24 * 3600;
 
+// 剩余不足 30 天就顺手续一张。没有续期的话 120 天是一道硬悬崖——
+// 天天在用的人也可能正好在婚礼现场撞上到期。
+const SESSION_RENEW_WITHIN = 30 * 24 * 3600;
+
 export default {
   async fetch(request, env) {
     // 退出登录不需要先登录：它只做「清掉凭证」这一件事
@@ -42,28 +46,50 @@ export default {
     // 门后的东西是私人的：别让任何中间层替我缓存
     out.headers.set("Cache-Control", "private, no-cache");
 
-    // 刚用密码进来的，换一张通行证，下次免输
-    if (session.via === "basic" && env.SESSION_SECRET) {
-      out.headers.append("Set-Cookie", await mintSession(session.user, env.SESSION_SECRET));
+    // 有票要发就挂上。这里不问「你是怎么进来的」——那是认证自己的事。
+    // 只在导航请求上挂：否则登录后一页十几张子资源会各种一次。
+    if (session.cookie && isNavigation(request)) {
+      out.headers.append("Set-Cookie", session.cookie);
     }
     return out;
   },
 };
 
 /**
- * 唯一的认证入口：返回 `{ user, via }`，或 null 表示拒绝。
+ * 唯一的认证入口：返回 `{ user, cookie }`，或 null 表示拒绝。
+ * `cookie` 是「这次要不要给他发张新票」，没有就是 null。
  *
- * 多了一条 cookie 路径，但入口仍然只有这一个——调用方永远只问这一个函数
- * 「这个请求是谁」。将来换成用户表、SSO 或别的什么，改的还是这里。
+ * 调用方只知道「是谁」和「有没有票要挂」，**不知道他是怎么进来的**——
+ * 这正是单一入口要保的东西。将来换成用户表或 SSO，改的还是这一个函数，
+ * 调用方一行都不用动。
  */
 async function authenticate(request, env) {
-  const viaCookie = await userFromSession(request, env);
-  if (viaCookie) return { user: viaCookie, via: "cookie" };
+  const session = await userFromSession(request, env);
+  if (session) {
+    // 快到期了就顺手续一张
+    const dueSoon = session.exp - Math.floor(Date.now() / 1000) < SESSION_RENEW_WITHIN;
+    return {
+      user: session.u,
+      cookie: dueSoon ? await mintSession(session.u, env.SESSION_SECRET) : null,
+    };
+  }
 
-  const viaBasic = await userFromBasicAuth(request, env);
-  if (viaBasic) return { user: viaBasic, via: "basic" };
+  const user = await userFromBasicAuth(request, env);
+  if (user) {
+    // 刚用密码进来的，换一张通行证，下次免输。没配签名密钥就只是没票可发。
+    return { user, cookie: env.SESSION_SECRET ? await mintSession(user, env.SESSION_SECRET) : null };
+  }
 
   return null;
+}
+
+/**
+ * 子资源不发新票，免得登录后一页十几张各种一次。
+ * 认不出来的（curl、老浏览器、测试）按导航算——宁可多发一次，也别让人拿不到票。
+ */
+function isNavigation(request) {
+  const dest = request.headers.get("Sec-Fetch-Dest");
+  return !dest || dest === "document";
 }
 
 /* ---------- 路径一：会话 cookie ---------- */
@@ -93,10 +119,12 @@ async function userFromSession(request, env) {
     return null;
   }
 
-  if (typeof payload?.exp !== "number" || payload.exp * 1000 <= Date.now()) return null;
+  // Number.isFinite 挡住 Infinity——`Infinity <= now` 是 false，会变成永不过期。
+  // 要构造它得先有签名，纯属纵深防御，但这一行很便宜。
+  if (!Number.isFinite(payload?.exp) || payload.exp * 1000 <= Date.now()) return null;
   if (payload.u !== USER_ID) return null;
 
-  return payload.u;
+  return { u: payload.u, exp: payload.exp };
 }
 
 async function mintSession(user, secret) {
@@ -208,17 +236,26 @@ function unauthorized() {
 }
 
 /**
- * 退出登录：清掉会话 cookie，并用 401 让浏览器重新要凭据。
- * 说句实话——浏览器可能仍缓存着 Basic 的用户名密码，那不归这里管，所以文案里讲明。
+ * 退出登录 = **让这台设备把票丢掉**，仅此而已。说清楚它不是什么：
+ *
+ *   - 签名 cookie 是无状态的，服务端没有「已注销」名单。有人抄走过 cookie 原文的话，
+ *     重放它在有效期内仍然管用。
+ *   - 改 AUTH_PASSWORD 也踢不掉已经发出去的票——cookie 那条路根本不看密码。
+ *
+ * 真要把所有设备踢下线，只有一招：**换掉 SESSION_SECRET**，所有票立刻验签失败。
+ *
+ * 返回 200 而不是 401：401 会带出浏览器的登录弹框，而浏览器很可能还缓存着
+ * Basic 凭据，于是静默重发 → 立刻又拿到一张新票，退出等于没退。
  */
 function logout() {
   return new Response(
-    "已退出登录。\n\n浏览器可能还记着 Basic Auth 的用户名密码；要彻底退出，关掉浏览器再打开。\n",
+    "已退出登录（这台设备的会话已清除）。\n\n" +
+      "浏览器可能还记着 Basic Auth 的用户名密码，重新打开本站会直接进来；要彻底退出，关掉浏览器。\n" +
+      "要让所有设备一起下线，去换掉 SESSION_SECRET。\n",
     {
-      status: 401,
+      status: 200,
       headers: {
         "Set-Cookie": `${COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax`,
-        "WWW-Authenticate": `Basic realm="${REALM}", charset="UTF-8"`,
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
       },
