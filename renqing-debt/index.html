@@ -507,18 +507,26 @@
     padding: 12px 0; border-top: 1px solid var(--divider-soft);
   }
   #history-list .row:first-child { border-top: 0; }
-  #history-list .when { font-size: 15px; letter-spacing: -0.2px; }
-  #history-list .rev { font-size: 13px; color: var(--ink-48); }
+  #history-list .when { font-size: 17px; line-height: 1.47; letter-spacing: -0.374px; }
+  #history-list .rev { font-size: 12px; letter-spacing: -0.12px; color: var(--ink-48); }
   #history-list .empty { color: var(--ink-48); padding: 12px 0; }
 
   /* 冲突面板：两边摆出来，让人自己定。不做自动合并，所以也不需要 diff 视图 */
   #conflict-overlay .modal { max-width: 520px; }
   .conflict-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 17px 0 0; }
+  /* 容器用 18px（§3：胶囊 11px 是可操作元素，容器别混用） */
   .conflict-cols > div {
-    border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 12px 14px;
+    border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 12px 14px;
   }
-  .conflict-cols strong { display: block; font-size: 13px; color: var(--ink-48); font-weight: 400; }
-  .conflict-cols span { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+  /* 微文案 12/400/−0.12px；大数字走 §2 的 34/600/1.2/−0.374px，并 tabular-nums */
+  .conflict-cols strong {
+    display: block; font-size: 12px; font-weight: 400; letter-spacing: -0.12px;
+    color: var(--ink-48);
+  }
+  .conflict-cols span {
+    font-family: var(--font-display); font-size: 34px; font-weight: 600;
+    line-height: 1.2; letter-spacing: -0.374px; font-variant-numeric: tabular-nums;
+  }
   #conflict-overlay .modal-actions { flex-wrap: wrap; }
   @media (max-width: 480px) { .conflict-cols { grid-template-columns: 1fr; } }
 
@@ -1091,6 +1099,10 @@ const Cloud = {
    * keepalive 让请求在页面卸载之后仍然能完成。
    */
   flushNow() {
+    // 同上：冲突未决时这条路也不能走。它挂在 visibilitychange 上，而
+    // 「切到另一台设备去看看」正是冲突面板引导人去做的事——那一刻覆盖
+    // 掉云端，等于面板白弹。
+    if (this._paused) return;
     if (!this._pending) return;
     clearTimeout(this._timer);
     this._timer = null;
@@ -1142,7 +1154,10 @@ const Cloud = {
       this._emit("failed", e);
     } finally {
       this._busy = false;
-      if (this._dirty) {
+      // ⚠️ 这里必须看 _paused。409 已经把 _rev 换成了云端那一版，
+      // 此刻重试的 If-Match 必然对上 → 200 覆盖，而人还在看冲突面板。
+      // 「绝不自动合并」这句承诺就是在这一行上兑现或失效的。
+      if (this._dirty && !this._paused) {
         this._dirty = false;
         this._flush();
       }
@@ -3124,6 +3139,7 @@ const CloudBoot = {
    * 这是这个系统能犯的最坏的错，所以宁可整个挡住。
    */
   async start() {
+    this.show("loading");
     try {
       Store._memory = await Cloud.pull();
     } catch (e) {
@@ -3132,6 +3148,7 @@ const CloudBoot = {
       document.getElementById("cloud-retry").addEventListener("click", () => location.reload());
       return false;
     }
+    this.show("idle");
     Cloud.onStatus = (state, detail) => this.show(state, detail);
     Cloud.onConflict = (remote) => this.showConflict(remote);
     this.bindConflict();
@@ -3283,6 +3300,10 @@ const CloudBoot = {
     el.dataset.state = state;
     el.hidden = false;
 
+    if (state === "loading") {
+      el.textContent = "正在读云端的账本…";
+      return;
+    }
     if (state === "saving") {
       el.textContent = "正在存到云端…";
       return;

@@ -46,6 +46,9 @@ const ledgerKey = (user) => `u/${user}/renqing/v1`;
 // 「冲突时选错了边」——最可能真发生的两种。这本账丢了不可重建：
 // 谁三年前随了你多少，没有第二个地方记着。
 const historyPrefix = (user) => `h/${user}/renqing/`;
+// 补零到 6 位，好让 KV 的字典序等于版本序（淘汰最老的时候直接切前几个）。
+// 边界：版本号到 1000000 之后字典序会翻转，淘汰就会删错方向。一年几十次写入，
+// 这一天不会来；真要来了，改成 8 位并把历史 key 迁一次即可。
 const historyKey = (user, rev) => `${historyPrefix(user)}${String(rev).padStart(6, "0")}`;
 const HISTORY_KEEP = 20;
 
@@ -56,8 +59,19 @@ const HISTORY_KEEP = 20;
 // （自留地里它住 /renqing/），那时 `./api/ledger` 会解析成 /renqing/api/ledger。
 // 部署在哪只有托管它的 Worker 知道，所以由 Worker 说了算。
 const CLOUD_FLAG = "__CLOUD_HOSTED__";
-// 首页地址可配：自留地的首页是卡片墙，粉丝自建时通常就是根
-const homeOf = (env) => env.CLOUD_HOME || "/";
+// 首页地址可配：自留地的首页是卡片墙，粉丝自建时通常就是根。
+// 只收同源的绝对路径——配错了（或被塞进 javascript: / 外部 URL）就退回根，
+// 免得品牌条把人带去别处。
+function homeOf(env) {
+  const raw = String(env.CLOUD_HOME || "/");
+  return /^\/[^/\\]*/.test(raw) ? raw : "/";
+}
+
+/**
+ * 往 <script> 里塞值时，JSON.stringify 是不够的：它不转义 `<`，
+ * 于是一个含 `</script>` 的值就能越出脚本块。把 `<` 转成 \u003c 即可。
+ */
+const inlineJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
 
 export default {
   async fetch(request, env) {
@@ -82,7 +96,7 @@ export default {
         .on("head", {
           element(el) {
             el.prepend(
-              `<script>window.${CLOUD_FLAG}=true;window.__LEDGER_API__=${JSON.stringify(LEDGER_PATH)};window.__CLOUD_HOME__=${JSON.stringify(homeOf(env))}</script>`,
+              `<script>window.${CLOUD_FLAG}=true;window.__LEDGER_API__=${inlineJson(LEDGER_PATH)};window.__CLOUD_HOME__=${inlineJson(homeOf(env))}</script>`,
               { html: true },
             );
           },
@@ -106,10 +120,15 @@ export default {
  *
  * 版本号存在 KV 的 metadata 里，账本本体仍是一份纯 JSON，这一层不碰它。
  *
- * ⚠️ 诚实说明限制：KV 没有原子的 compare-and-swap，两个请求可能同时读到
- * 同一个版本号、都判定为「一致」。这个竞态窗口是毫秒级的，而本护栏要挡的是
- * 「开了几小时的旧标签页」——那种场景版本号完全够用。真要消灭毫秒级竞态
- * 得上 Durable Objects，对一本一年几十条的账是过度设计。
+ * ⚠️ 诚实说明限制：KV 没有原子的 compare-and-swap，而且它的读是**最终一致**的
+ * ——同一个 key 的写入可能要几十秒才在所有节点可见。所以窗口不是「毫秒级」，
+ * 而是**可以到分钟级**，跨设备时尤其如此。撞上陈旧读的话，CAS 会误判为一致
+ * 而放行，并且归档下来的是那份陈旧的内容——被吃掉的那一版连历史里都没有。
+ *
+ * 那为什么还是这么做：它挡住了真正高频的那类事故（开了几小时的旧标签页、
+ * 两台设备隔着几小时各记各的），而剩下的窗口要求两台设备在同一分钟内先后
+ * 写入同一本账。消灭它得上 Durable Objects，对一本一年几十条的账是过度设计。
+ * 但别把这个限制说小了——它是分钟级的，不是毫秒级的。
  */
 async function ledgerApi(request, env, user) {
   if (!env.LEDGER) return json({ error: "没有配置账本存储" }, 501);
