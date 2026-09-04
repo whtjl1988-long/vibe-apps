@@ -1051,7 +1051,8 @@ const IS_CLOUD = MODE === "cloud";
  * 推失败必须立刻说。让人以为记上了、其实没记，是这个系统能犯的最坏的错。
  * -------------------------------------------------------------- */
 const Cloud = {
-  endpoint: "./api/ledger",
+  // 地址由托管它的 Worker 注入——软件可能住在子路径下，自己猜不出来
+  endpoint: (typeof window !== "undefined" && window.__LEDGER_API__) || "./api/ledger",
   _timer: null,
   _busy: false,
   _dirty: false,
@@ -1158,7 +1159,7 @@ const Cloud = {
  * 于是它照样受冲突护栏管着——恢复期间别处若动过账，一样会被拦下来问。
  * -------------------------------------------------------------- */
 const History = {
-  endpoint: "./api/ledger/history",
+  endpoint: ((typeof window !== "undefined" && window.__LEDGER_API__) || "./api/ledger") + "/history",
 
   async list() {
     const res = await fetch(this.endpoint, { headers: { Accept: "application/json" } });
@@ -3134,6 +3135,7 @@ const CloudBoot = {
     Cloud.onStatus = (state, detail) => this.show(state, detail);
     Cloud.onConflict = (remote) => this.showConflict(remote);
     this.bindConflict();
+    this.pointBrandBarHome();
 
     // 页面被关掉 / 切到后台时，把 debounce 里还欠着的那一笔立刻推走
     addEventListener("pagehide", () => Cloud.flushNow());
@@ -3141,6 +3143,21 @@ const CloudBoot = {
       if (document.visibilityState === "hidden") Cloud.flushNow();
     });
     return true;
+  },
+
+  /**
+   * 自留地里的这一份，品牌条指回自留地首页——你在自己家里，
+   * 不需要一个门牌指向展厅。公开分发的那份没有注入，保持指向站点作品墙。
+   */
+  pointBrandBarHome() {
+    const home = window.__CLOUD_HOME__ || "/";
+    const back = document.getElementById("back-link");
+    if (back) {
+      back.textContent = "我的自留地";
+      back.href = home;
+    }
+    const brand = document.querySelector("#site-bar .brand");
+    if (brand) brand.href = home;
   },
 
   bindConflict() {

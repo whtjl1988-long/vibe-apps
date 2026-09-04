@@ -49,9 +49,15 @@ const historyPrefix = (user) => `h/${user}/renqing/`;
 const historyKey = (user, rev) => `${historyPrefix(user)}${String(rev).padStart(6, "0")}`;
 const HISTORY_KEEP = 20;
 
-// 注入给页面的标记：告诉软件「你正跑在云端」。
-// 公开分发的那一份没有这个标记，于是仍是试玩态/自托管态——同一份源码，不 fork。
+// 注入给页面的标记：告诉软件「你正跑在云端」，顺带告诉它账本接口和首页在哪。
+// 公开分发的那一份没有这些标记，于是仍是试玩态/自托管态——同一份源码，不 fork。
+//
+// 为什么要注入地址而不是让软件用相对路径：软件可能被放在子路径下
+// （自留地里它住 /renqing/），那时 `./api/ledger` 会解析成 /renqing/api/ledger。
+// 部署在哪只有托管它的 Worker 知道，所以由 Worker 说了算。
 const CLOUD_FLAG = "__CLOUD_HOSTED__";
+// 首页地址可配：自留地的首页是卡片墙，粉丝自建时通常就是根
+const homeOf = (env) => env.CLOUD_HOME || "/";
 
 export default {
   async fetch(request, env) {
@@ -75,7 +81,10 @@ export default {
       res = new HTMLRewriter()
         .on("head", {
           element(el) {
-            el.prepend(`<script>window.${CLOUD_FLAG}=true</script>`, { html: true });
+            el.prepend(
+              `<script>window.${CLOUD_FLAG}=true;window.__LEDGER_API__=${JSON.stringify(LEDGER_PATH)};window.__CLOUD_HOME__=${JSON.stringify(homeOf(env))}</script>`,
+              { html: true },
+            );
           },
         })
         .transform(res);

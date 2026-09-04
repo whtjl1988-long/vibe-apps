@@ -14,12 +14,19 @@ const src = join(here, "..", ".."); // renqing-debt/
 rmSync(app, { recursive: true, force: true });
 mkdirSync(app, { recursive: true });
 
-for (const f of ["index.html", "logo-mushroom.webp", "static"]) {
-  const from = join(src, f);
-  if (!existsSync(from)) {
-    console.error(`缺少 ${from}`);
-    process.exit(1);
+// 两种部署形态都摆出来，因为两种都真的存在：
+//   /          粉丝自建时人情债就在根目录
+//   /renqing/  自留地里它住在子路径下（根是卡片墙）
+// 只测根部署的话，子路径下那条相对路径的坑就永远测不到。
+for (const dest of [app, join(app, "renqing")]) {
+  mkdirSync(dest, { recursive: true });
+  for (const f of ["index.html", "logo-mushroom.webp", "static"]) {
+    const from = join(src, f);
+    if (!existsSync(from)) {
+      console.error(`缺少 ${from}`);
+      process.exit(1);
+    }
+    cpSync(from, join(dest, f), { recursive: true });
   }
-  cpSync(from, join(app, f), { recursive: true });
 }
-console.log("test-app 已就绪（人情债本体 + 依赖）");
+console.log("test-app 已就绪（根部署 + /renqing/ 子路径部署）");
