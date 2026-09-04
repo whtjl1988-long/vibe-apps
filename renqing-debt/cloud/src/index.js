@@ -36,9 +36,18 @@ const SESSION_RENEW_WITHIN = 30 * 24 * 3600;
 // 账本接口。整份 JSON 存一个 key——这本账一年几十条，整份重写在这个量级
 // 没有性能问题，不值得为它上 D1。
 const LEDGER_PATH = "/api/ledger";
+const HISTORY_PATH = "/api/ledger/history";
 
-// key 带用户前缀。今天前缀是定值，将来多用户天然分隔，**不需要迁移已有数据**。
+// key 带用户前缀。今天前缀是定值，将来多用户天然分隔——**新用户**不需要迁移；
+// 培然同学自己那份在 `u/me/...`，真做多用户时得把 me 映射到他的 id 或迁一次。
 const ledgerKey = (user) => `u/${user}/renqing/v1`;
+
+// 历史版本。每次写入把**被覆盖掉的那一份**留下来，挡的是「误删一笔」和
+// 「冲突时选错了边」——最可能真发生的两种。这本账丢了不可重建：
+// 谁三年前随了你多少，没有第二个地方记着。
+const historyPrefix = (user) => `h/${user}/renqing/`;
+const historyKey = (user, rev) => `${historyPrefix(user)}${String(rev).padStart(6, "0")}`;
+const HISTORY_KEEP = 20;
 
 // 注入给页面的标记：告诉软件「你正跑在云端」。
 // 公开分发的那一份没有这个标记，于是仍是试玩态/自托管态——同一份源码，不 fork。
@@ -52,7 +61,11 @@ export default {
     const session = await authenticate(request, env);
     if (!session) return unauthorized();
 
-    if (new URL(request.url).pathname === LEDGER_PATH) {
+    const path = new URL(request.url).pathname;
+    if (path === HISTORY_PATH || path.startsWith(HISTORY_PATH + "/")) {
+      return withCookie(await historyApi(request, env, session.user), session, request);
+    }
+    if (path === LEDGER_PATH) {
       return withCookie(await ledgerApi(request, env, session.user), session, request);
     }
 
@@ -130,6 +143,15 @@ async function ledgerApi(request, env, user) {
     }
 
     const next = currentRev + 1;
+
+    // 先把旧的那份归档，再覆盖。顺序反了的话，写成功、归档失败就等于没备份。
+    if (current !== null) {
+      await env.LEDGER.put(historyKey(user, currentRev), current, {
+        metadata: { rev: currentRev, at: new Date().toISOString() },
+      });
+      await pruneHistory(env, user);
+    }
+
     await env.LEDGER.put(key, text, { metadata: { rev: next } });
     return new Response(JSON.stringify({ ok: true, rev: next }), {
       headers: { "Content-Type": "application/json; charset=utf-8", ETag: etag(next) },
@@ -137,6 +159,45 @@ async function ledgerApi(request, env, user) {
   }
 
   return json({ error: "不支持的方法" }, 405);
+}
+
+/**
+ * 历史版本的读取。
+ *   GET  /api/ledger/history        列出有哪些版本（新的在前）
+ *   GET  /api/ledger/history/<rev>  取某一版的内容
+ *
+ * 恢复不在这里做——前端把某一版读出来当作「我这边」，再走正常的 PUT + If-Match。
+ * 这样恢复动作也受同一道护栏管着，不会绕过 T3。
+ */
+async function historyApi(request, env, user) {
+  if (!env.LEDGER) return json({ error: "没有配置账本存储" }, 501);
+  if (request.method !== "GET") return json({ error: "不支持的方法" }, 405);
+
+  const path = new URL(request.url).pathname;
+  const tail = path.slice(HISTORY_PATH.length).replace(/^\//, "");
+
+  if (!tail) {
+    const list = await env.LEDGER.list({ prefix: historyPrefix(user) });
+    const versions = list.keys
+      .map((k) => ({ rev: k.metadata?.rev ?? 0, at: k.metadata?.at ?? null }))
+      .sort((a, b) => b.rev - a.rev);
+    return json({ versions });
+  }
+
+  if (!/^\d+$/.test(tail)) return json({ error: "版本号得是数字" }, 400);
+  const value = await env.LEDGER.get(historyKey(user, Number(tail)));
+  if (value === null) return json({ error: "没有这一版" }, 404);
+  return new Response(value, { headers: { "Content-Type": "application/json; charset=utf-8" } });
+}
+
+/** 只留最近 20 版。KV 的 list 是按 key 字典序的，而 key 里的版本号补了零，所以序就是版本序。 */
+async function pruneHistory(env, user) {
+  const list = await env.LEDGER.list({ prefix: historyPrefix(user) });
+  const extra = list.keys.length - HISTORY_KEEP;
+  if (extra <= 0) return;
+  // 字典序最小的就是最老的
+  const doomed = list.keys.slice(0, extra);
+  await Promise.all(doomed.map((k) => env.LEDGER.delete(k.name)));
 }
 
 const etag = (rev) => `"${rev}"`;

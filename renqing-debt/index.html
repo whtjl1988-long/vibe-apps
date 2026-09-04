@@ -500,6 +500,17 @@
     font: 600 13px/1.3 var(--font); letter-spacing: -0.08px;
   }
 
+  /* 历史版本：一行一版，右边一个恢复按钮。入口最小即可，不必好看 */
+  #history-list { margin: 17px 0 0; }
+  #history-list .row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-top: 1px solid var(--divider-soft);
+  }
+  #history-list .row:first-child { border-top: 0; }
+  #history-list .when { font-size: 15px; letter-spacing: -0.2px; }
+  #history-list .rev { font-size: 13px; color: var(--ink-48); }
+  #history-list .empty { color: var(--ink-48); padding: 12px 0; }
+
   /* 冲突面板：两边摆出来，让人自己定。不做自动合并，所以也不需要 diff 视图 */
   #conflict-overlay .modal { max-width: 520px; }
   .conflict-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 17px 0 0; }
@@ -545,6 +556,18 @@
   <a id="back-link" href="https://vibe-all.com/apps/">作品墙</a>
   <button id="share-btn" type="button">分享</button>
 </nav>
+<div class="overlay" id="history-overlay">
+  <div class="modal">
+    <h3>历史版本</h3>
+    <p>每次存到云端时，被覆盖掉的那一份都会留下来，最近 20 版。</p>
+    <p class="warn">恢复 = 把那一版当作现在这份重新存一次，不会绕过冲突检查。</p>
+    <div id="history-list"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="history-close">关掉</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="conflict-overlay">
   <div class="modal">
     <h3>这本账在别处改过了</h3>
@@ -830,6 +853,7 @@
       <input type="file" id="file-json" accept="application/json,.json" hidden>
       <button class="ghost" id="btn-print">打印礼单</button>
       <button class="ghost" id="btn-report">生成资产负债表</button>
+      <button class="ghost" id="btn-history" hidden>历史版本</button>
       <button class="ghost" id="btn-reset" hidden>重置为演示数据</button>
       <span class="mode-note" id="mode-note"></span>
     </div>
@@ -1126,6 +1150,26 @@ const Cloud = {
 
   _emit(state, detail) {
     if (this.onStatus) this.onStatus(state, detail);
+  },
+};
+
+/* ---------- History：找回被覆盖掉的那一版
+ * 恢复不走什么特殊通道：把那一版读出来当作「我这边」，再走正常的保存流程。
+ * 于是它照样受冲突护栏管着——恢复期间别处若动过账，一样会被拦下来问。
+ * -------------------------------------------------------------- */
+const History = {
+  endpoint: "./api/ledger/history",
+
+  async list() {
+    const res = await fetch(this.endpoint, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error("读不到历史：HTTP " + res.status);
+    return (await res.json()).versions || [];
+  },
+
+  async version(rev) {
+    const res = await fetch(`${this.endpoint}/${rev}`, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error("读不到第 " + rev + " 版：HTTP " + res.status);
+    return await res.json();
   },
 };
 
@@ -2318,6 +2362,7 @@ const UI = {
       ? "试玩态：随便改，关掉或刷新即还原，什么都不会留下"
       : "自托管态：数据存在这台设备的浏览器里";
     this.el("btn-reset").hidden = !IS_DEMO;
+    this.el("btn-history").hidden = !IS_CLOUD;
     this.bind();
     this.renderTags();
     this.renderFaq();
@@ -2486,6 +2531,10 @@ const UI = {
       const f = e.target.files && e.target.files[0];
       if (f) Exporter.importFile(f);
       e.target.value = "";
+    });
+    this.el("btn-history").addEventListener("click", () => CloudBoot.openHistory());
+    this.el("history-close").addEventListener("click", () => {
+      this.el("history-overlay").classList.remove("open");
     });
     this.el("btn-reset").addEventListener("click", () => {
       Store.clear();
@@ -3131,6 +3180,72 @@ const CloudBoot = {
     Cloud.resume();
     this.closeConflict();
     Cloud.push();
+  },
+
+  /** 列出历史版本。读不出来就明说，不给一个空列表让人以为「没有备份」 */
+  async openHistory() {
+    const box = document.getElementById("history-list");
+    const overlay = document.getElementById("history-overlay");
+    box.innerHTML = '<p class="empty">正在读…</p>';
+    overlay.classList.add("open");
+
+    let versions;
+    try {
+      versions = await History.list();
+    } catch (e) {
+      box.innerHTML = '<p class="empty"></p>';
+      box.firstChild.textContent = "读不到历史：" + ((e && e.message) || e);
+      return;
+    }
+
+    if (!versions.length) {
+      box.innerHTML = '<p class="empty">还没有历史版本——存过第二次之后才会有。</p>';
+      return;
+    }
+
+    box.innerHTML = "";
+    for (const v of versions) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const left = document.createElement("div");
+      const when = document.createElement("div");
+      when.className = "when";
+      when.textContent = v.at ? new Date(v.at).toLocaleString("zh-CN") : "时间不详";
+      const rev = document.createElement("div");
+      rev.className = "rev";
+      rev.textContent = "第 " + v.rev + " 版";
+      left.append(when, rev);
+      const btn = document.createElement("button");
+      btn.className = "ghost";
+      btn.textContent = "恢复这一版";
+      btn.addEventListener("click", () => this.restore(v.rev));
+      row.append(left, btn);
+      box.append(row);
+    }
+  },
+
+  /**
+   * 恢复 = 把那一版当作「我这边」，走正常的保存流程。
+   * 于是它照样受冲突护栏管着：恢复期间别处动过账，一样会被拦下来问。
+   */
+  async restore(rev) {
+    let snapshot;
+    try {
+      snapshot = await History.version(rev);
+    } catch (e) {
+      alert("读不到第 " + rev + " 版：" + ((e && e.message) || e));
+      return;
+    }
+    const n = Array.isArray(snapshot?.records) ? snapshot.records.length : 0;
+    if (!confirm(`把账本恢复成第 ${rev} 版（${n} 笔）？现在这份会被它替掉——恢复前记得先导出一份。`)) return;
+
+    Ledger.state = Ledger.migrate(snapshot);
+    document.getElementById("history-overlay").classList.remove("open");
+    UI.renderTags();
+    UI.renderNameList();
+    UI.renderEventOptions();
+    UI.render();
+    Ledger.save(); // 走正常保存：Store.write → Cloud.push → 带 If-Match
   },
 
   closeConflict() {
