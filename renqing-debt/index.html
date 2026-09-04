@@ -1923,7 +1923,7 @@ const Exporter = {
   },
 
   json() {
-    const payload = { app: "renqing-debt", appVersion: "1.0.0", version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
+    const payload = { app: "renqing-debt", appVersion: "1.1.1", version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
