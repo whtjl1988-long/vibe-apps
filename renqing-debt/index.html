@@ -241,7 +241,10 @@
 
   /* 表格：白卡 + 发丝线，无阴影 */
   .table-scroll { overflow-x: auto; background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg); }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; letter-spacing: -0.224px; }
+  /* 列宽写死：换排序时当页内容跟着变（「亲戚 · 现金」→「现金」），auto 布局会重算列宽，整张表跳一下 */
+  table { width: 100%; min-width: 680px; table-layout: fixed; border-collapse: collapse; font-size: 14px; letter-spacing: -0.224px; }
+  /* 列宽固定后，超长的一串字符要在格子里折行，而不是顶破列宽或被裁掉 */
+  td, th { overflow-wrap: anywhere; }
   thead th {
     text-align: left; font-size: 14px; font-weight: 600; line-height: 1.29; letter-spacing: -0.224px;
     color: var(--ink-48); border-bottom: 1px solid var(--hairline); padding: 17px 20px; white-space: nowrap;
@@ -252,7 +255,6 @@
   td.amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
   td.amount.in { color: var(--in); }
   td.amount.out { color: var(--out); }
-  td.trace { color: var(--ink-48); font-size: 12px; letter-spacing: -0.12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .tag {
     font-size: 12px; letter-spacing: -0.12px; line-height: 1; padding: 6px 12px;
     border-radius: var(--r-pill); white-space: nowrap; display: inline-block;
@@ -270,7 +272,8 @@
   }
   .sort-th:hover { color: var(--primary); }
   .sort-th.on { color: var(--ink); }
-  .sort-th.on::after { content: attr(data-arrow); margin-left: 4px; color: var(--primary); }
+  /* 箭头恒定占位：否则切换排序列时，箭头的宽度会在两列之间搬家，表头跟着抖 */
+  .sort-th::after { content: attr(data-arrow); display: inline-block; width: 12px; margin-left: 4px; color: var(--primary); }
   .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 17px; font-size: 14px; color: var(--ink-48); }
   .pager button {
     font-size: 14px; letter-spacing: -0.224px; line-height: 1.29; padding: 8px 14px;
@@ -453,7 +456,7 @@
     .sheet-head { border-bottom: 1.5pt solid #000; padding-bottom: 8pt; margin-bottom: 12pt; }
     .sheet-head h1 { font-size: 20pt; font-weight: 600; letter-spacing: 0; }
     .sheet-head .meta { font-size: 10pt; color: #333; margin-top: 4pt; display: flex; gap: 16pt; flex-wrap: wrap; }
-    .sheet table { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+    .sheet table { width: 100%; min-width: 0; table-layout: auto; border-collapse: collapse; font-size: 10.5pt; }
     .sheet thead { display: table-header-group; } /* 跨页重复表头 */
     .sheet th { text-align: left; font-weight: 600; border-bottom: 0.75pt solid #000; padding: 5pt 4pt; }
     .sheet td { border-bottom: 0.4pt solid #999; padding: 5pt 4pt; }
@@ -741,6 +744,10 @@
     </div>
     <div class="table-scroll">
       <table>
+        <colgroup>
+          <col><col style="width:108px"><col style="width:108px"><col style="width:112px">
+          <col style="width:88px"><col style="width:124px"><col style="width:100px">
+        </colgroup>
         <thead>
           <tr>
             <th><button type="button" class="sort-th" data-tb="people" data-sk="name">姓名</button></th>
@@ -776,6 +783,10 @@
     </div>
     <div class="table-scroll">
       <table>
+        <colgroup>
+          <col style="width:88px"><col style="width:112px"><col style="width:120px">
+          <col style="width:148px"><col><col style="width:124px"><col style="width:96px">
+        </colgroup>
         <thead>
           <tr>
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="dir">方向</button></th>
@@ -784,7 +795,6 @@
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="event">事项</button></th>
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="note">备注</button></th>
             <th><button type="button" class="sort-th" data-tb="rows" data-sk="date">日期</button></th>
-            <th style="text-align:right"><button type="button" class="sort-th" data-tb="rows" data-sk="edits">改动</button></th>
             <th></th>
           </tr>
         </thead>
@@ -914,6 +924,9 @@
     <div class="p-verdict" id="person-verdict"></div>
     <div class="table-scroll">
       <table>
+        <colgroup>
+          <col style="width:80px"><col style="width:104px"><col style="width:124px"><col><col style="width:112px">
+        </colgroup>
         <thead>
           <tr><th>方向</th><th style="text-align:right">金额</th><th>事项</th><th>备注</th><th>日期</th></tr>
         </thead>
@@ -1010,9 +1023,6 @@ const Utils = {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   },
   // 只数字段修改，作废/恢复不算「改动」——两者性质不同，混在一起看不出金额是否被动过
-  edits(rec) {
-    return (rec.history || []).filter((h) => h.field !== "void").length;
-  },
   clone(obj) {
     return JSON.parse(JSON.stringify(obj));
   },
@@ -1396,22 +1406,7 @@ const Ledger = {
     this.save();
     return rec;
   },
-  update(id, patch) {
-    const rec = this.state.records.find((r) => r.id === id);
-    if (!rec) return null;
-    const changes = [];
-    for (const k of ["name", "amount", "note", "date", "dir", "eventId"]) {
-      if (patch[k] !== undefined && String(patch[k]) !== String(rec[k])) {
-        changes.push({ field: k, from: rec[k], to: patch[k], at: Utils.stamp() });
-        rec[k] = k === "amount" ? Number(patch[k]) : patch[k];
-      }
-    }
-    if (changes.length) {
-      rec.history.push(...changes);
-      this.save();
-    }
-    return rec;
-  },
+  // 记录不提供「改」：记错了就作废重录，账面留得住痕（history 仍由 toggleVoid 写）
   // 撤销上一笔：真删除刚录的那条（本会话内），不是作废——作废是"记错了要留痕"，撤销是"手滑了"
   removeById(id) {
     const i = this.state.records.findIndex((r) => r.id === id);
@@ -1489,11 +1484,10 @@ const Ledger = {
     const map = new Map();
     for (const r of this.live()) {
       const key = r.name;
-      if (!map.has(key)) map.set(key, { name: key, in: 0, out: 0, count: 0, last: "", edited: false });
+      if (!map.has(key)) map.set(key, { name: key, in: 0, out: 0, count: 0, last: "" });
       const p = map.get(key);
       p[r.dir === "in" ? "in" : "out"] += Number(r.amount) || 0;
       p.count += 1;
-      if ((r.history || []).length) p.edited = true;
       if (!p.last || (r.date || "") > p.last) p.last = r.date || "";
     }
     return [...map.values()].map((p) => ({ ...p, net: p.in - p.out, total: p.in + p.out }));
@@ -1571,7 +1565,6 @@ const Rating = {
     else if (p.count >= 2) { score += 4; marks.push({ w: 1, text: `往来 ${p.count} 笔` }); }
 
     if (p.in > 0 && p.out > 0) { score += 8; marks.push({ w: 3, text: "双向往来完整，关系处于活跃状态" }); }
-    if (p.edited) { score -= 5; marks.push({ w: 5, text: "历史记录曾被修正，审计留痕已计入" }); }
 
     const grade = score >= 85 ? "AAA" : score >= 72 ? "AA" : score >= 60 ? "A" : score >= 45 ? "BBB" : "CCC";
     // 理由取权重最大的两条，一本正经地拼起来
@@ -1696,7 +1689,11 @@ const Charts = {
   // ① 谁欠谁：发散横条，0 为中轴
   net(elId) {
     const el = document.getElementById(elId);
-    const people = Ledger.people().filter((p) => p.net !== 0).slice(0, 8);
+    // 排序不能省：people() 是 Map 插入顺序（= 账本数组顺序），直接 slice 等于随机挑 8 个人
+    const people = Ledger.people()
+      .filter((p) => p.net !== 0)
+      .sort((a, b) => Math.abs(b.net) - Math.abs(a.net))
+      .slice(0, 8);
     if (!people.length) return (el.innerHTML = '<p class="none">还没有往来，无债一身轻。</p>');
 
     const rowH = 26, gap = 8, padT = 16, padB = 22, gutter = 62, valW = 78;
@@ -1873,7 +1870,7 @@ const XS = {
 const Exporter = {
   // 明细工作表
   sheetRecords() {
-    const head = ["方向", "姓名", "金额", "大写", "事项", "备注", "日期", "状态", "改动"];
+    const head = ["方向", "姓名", "金额", "大写", "事项", "备注", "日期", "状态"];
     const rows = Ledger.all().map((r) => {
       const dead = r.void;
       const color = dead ? XS.INK_48 : r.dir === "in" ? XS.BLUE : XS.INK_80;
@@ -1887,11 +1884,10 @@ const Exporter = {
         XS.cell(r.note || "—", { ...base, color: dead ? XS.INK_48 : XS.INK_80 }),
         XS.cell(r.date, { ...base, color: XS.INK_48 }),
         XS.cell(dead ? "已作废" : "有效", { ...base, color: dead ? XS.INK_48 : XS.INK_80 }),
-        XS.cell(Utils.edits(r) || "—", { ...base, right: true, color: XS.INK_48 }),
       ];
     });
     const ws = XLSX.utils.aoa_to_sheet([head.map(XS.header), ...rows]);
-    ws["!cols"] = [{ wch: 7 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 26 }, { wch: 12 }, { wch: 9 }, { wch: 7 }];
+    ws["!cols"] = [{ wch: 7 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 26 }, { wch: 12 }, { wch: 9 }];
     ws["!rows"] = [{ hpt: 24 }, ...rows.map(() => ({ hpt: 20 }))];
     ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: head.length - 1 } }) };
     return ws;
@@ -2575,8 +2571,6 @@ const UI = {
       if (btn.dataset.act === "void") {
         Ledger.toggleVoid(btn.dataset.id);
         this.render();
-      } else if (btn.dataset.act === "edit") {
-        this.editRecord(btn.dataset.id);
       }
     });
   },
@@ -2637,7 +2631,6 @@ const UI = {
       case "event": return zh(Ledger.eventName(a.eventId), Ledger.eventName(b.eventId));
       case "note": return zh(a.note, b.note);
       case "date": return txt(a.date).localeCompare(txt(b.date));
-      case "edits": return Utils.edits(a) - Utils.edits(b);
       default: return 0;
     }
   },
@@ -2985,19 +2978,6 @@ const UI = {
     this.render();
   },
 
-  editRecord(id) {
-    const rec = Ledger.all().find((r) => r.id === id);
-    if (!rec) return;
-    const name = prompt("姓名", rec.name);
-    if (name === null) return;
-    const amount = prompt("金额", rec.amount);
-    if (amount === null) return;
-    const note = prompt("备注", rec.note);
-    if (note === null) return;
-    Ledger.update(id, { name: name.trim(), amount, note: note.trim() });
-    this.render();
-  },
-
   render() {
     const s = Ledger.stats();
     this.el("s-count").textContent = s.count;
@@ -3085,10 +3065,8 @@ const UI = {
         <td class="note">${Utils.esc(Ledger.eventName(r.eventId))}</td>
         <td>${Utils.esc(r.note) || '<span class="note">—</span>'}</td>
         <td class="note">${Utils.esc(r.date)}</td>
-        <td class="trace">${Utils.edits(r) ? `${Utils.edits(r)} 次` : '<span class="note">—</span>'}</td>
         <td>
           <div class="row-actions">
-            <button class="ghost mini" data-act="edit" data-id="${r.id}">改</button>
             <button class="ghost mini" data-act="void" data-id="${r.id}">${r.void ? "恢复" : "作废"}</button>
           </div>
         </td>
