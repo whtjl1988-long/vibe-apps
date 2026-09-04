@@ -217,3 +217,14 @@ test("真实浏览器：登录一次之后，新开的上下文不用再输密�
   await expect(p2.getByRole("heading", { name: "登录墙已经立起来了" })).toBeVisible();
   await second.close();
 });
+
+// 告别页是可选的：部署者在 public/ 放一张 logged-out.html 就用它，
+// 没放就回退纯文本。这里跑的实例没有那张页面，正好钉住回退这一半。
+test("没有自备告别页时，/logout 干净地回退纯文本", async ({ request }) => {
+  const res = await request.get("/logout");
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("text/plain");
+  expect(await res.text()).toContain("已退出登录");
+  // 不管走哪条路，票都得收走
+  expect(setCookies(res)[0]).toMatch(/Max-Age=0/);
+});
