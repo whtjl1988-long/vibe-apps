@@ -500,6 +500,17 @@
     font: 600 13px/1.3 var(--font); letter-spacing: -0.08px;
   }
 
+  /* 冲突面板：两边摆出来，让人自己定。不做自动合并，所以也不需要 diff 视图 */
+  #conflict-overlay .modal { max-width: 520px; }
+  .conflict-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 17px 0 0; }
+  .conflict-cols > div {
+    border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 12px 14px;
+  }
+  .conflict-cols strong { display: block; font-size: 13px; color: var(--ink-48); font-weight: 400; }
+  .conflict-cols span { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+  #conflict-overlay .modal-actions { flex-wrap: wrap; }
+  @media (max-width: 480px) { .conflict-cols { grid-template-columns: 1fr; } }
+
   /* id 选择器的 display 会压过 [hidden] 的默认 display:none——
      不写这一行，一个「隐藏」的全屏遮罩照样拦住所有点击 */
   #cloud-status[hidden], #cloud-block[hidden] { display: none !important; }
@@ -534,6 +545,22 @@
   <a id="back-link" href="https://vibe-all.com/apps/">作品墙</a>
   <button id="share-btn" type="button">分享</button>
 </nav>
+<div class="overlay" id="conflict-overlay">
+  <div class="modal">
+    <h3>这本账在别处改过了</h3>
+    <p>另一台设备（或另一个还开着的标签页）在你之后存过一次。两边不一样，得你来定用哪边。</p>
+    <p class="warn">不会自动合并——合错了比丢了还难查。</p>
+    <div class="conflict-cols">
+      <div><strong>云端那份</strong><span id="conflict-remote">—</span></div>
+      <div><strong>我这边</strong><span id="conflict-local">—</span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" id="conflict-export">先导出我这边</button>
+      <button class="ghost" id="conflict-mine">用我这边（覆盖云端）</button>
+      <button id="conflict-theirs">用云端那份</button>
+    </div>
+  </div>
+</div>
 <div id="cloud-status" hidden></div>
 <div id="cloud-block" hidden>
   <div class="box">
@@ -1005,20 +1032,30 @@ const Cloud = {
   _busy: false,
   _dirty: false,
   _pending: false, // 有改动还没成功推上去
+  _rev: 0, // 我这份是基于云端第几版改的
+  _paused: false, // 冲突未决时暂停推送，免得反复撞同一堵墙
+  onConflict: null, // (remoteState) → void，UI 接管
   onStatus: null, // (state, detail) → void，UI 接管
 
   /** 拉一次。204 表示还没有账本（空账本起步），不是错误。 */
   async pull() {
     const res = await fetch(this.endpoint, { headers: { Accept: "application/json" } });
+    this._rev = parseRev(res.headers.get("ETag"));
     if (res.status === 204) return null;
     if (!res.ok) throw new Error("读取失败：HTTP " + res.status);
     return await res.json();
   },
 
   push() {
+    if (this._paused) return; // 冲突还没决，别再往上推
     clearTimeout(this._timer);
     this._pending = true;
     this._timer = setTimeout(() => this._flush(), 400);
+  },
+
+  /** 冲突已经由人做了决定，恢复推送 */
+  resume() {
+    this._paused = false;
   },
 
   /**
@@ -1034,9 +1071,12 @@ const Cloud = {
     this._timer = null;
     this._pending = false;
     try {
+      // 也带 If-Match：页面正在消失，这时候更不能盲目覆盖别处的改动。
+      // 代价是万一此刻正好有冲突，这一笔会丢——但那要同时撞上「debounce 窗口内
+      // 关页面」和「别处刚好改过」，而盲目覆盖的后果比这严重得多。
       fetch(this.endpoint, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "If-Match": `"${this._rev}"` },
         body: JSON.stringify(Ledger.state),
         keepalive: true,
       });
@@ -1055,10 +1095,22 @@ const Cloud = {
     try {
       const res = await fetch(this.endpoint, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "If-Match": `"${this._rev}"` },
         body: JSON.stringify(Ledger.state),
       });
+
+      // 409：这本账在别处改过。停下来问人，绝不自动合并。
+      if (res.status === 409) {
+        this._rev = parseRev(res.headers.get("ETag"));
+        this._paused = true;
+        const remote = await res.json();
+        this._emit("idle");
+        if (this.onConflict) this.onConflict(remote);
+        return;
+      }
+
       if (!res.ok) throw new Error("HTTP " + res.status);
+      this._rev = parseRev(res.headers.get("ETag"));
       this._pending = false;
       this._emit("saved");
     } catch (e) {
@@ -1076,6 +1128,12 @@ const Cloud = {
     if (this.onStatus) this.onStatus(state, detail);
   },
 };
+
+/** ETag 形如 `"7"`。取不到就当 0——那会让下一次 PUT 撞 409，宁可撞也不要盲目覆盖。 */
+function parseRev(etag) {
+  const m = /^"(\d+)"$/.exec(String(etag || "").trim());
+  return m ? Number(m[1]) : 0;
+}
 
 /* ---------- Store：三套后端，按形态切换 ---------- */
 const STORAGE_KEY = "renqing-debt/v1";
@@ -3025,6 +3083,8 @@ const CloudBoot = {
       return false;
     }
     Cloud.onStatus = (state, detail) => this.show(state, detail);
+    Cloud.onConflict = (remote) => this.showConflict(remote);
+    this.bindConflict();
 
     // 页面被关掉 / 切到后台时，把 debounce 里还欠着的那一笔立刻推走
     addEventListener("pagehide", () => Cloud.flushNow());
@@ -3034,9 +3094,60 @@ const CloudBoot = {
     return true;
   },
 
+  bindConflict() {
+    document.getElementById("conflict-theirs").addEventListener("click", () => this.takeRemote());
+    document.getElementById("conflict-mine").addEventListener("click", () => this.keepMine());
+    // 导出之后面板故意不关：人可能还想再看看两边的数字再决定
+    document.getElementById("conflict-export").addEventListener("click", () => Exporter.json());
+  },
+
+  /** 把两边摆出来。只给笔数——不做 diff，因为我们不打算替人做合并的决定。 */
+  showConflict(remote) {
+    this._remote = remote;
+    const count = (x) => (x && Array.isArray(x.records) ? x.records.length : 0);
+    document.getElementById("conflict-remote").textContent = count(remote) + " 笔";
+    document.getElementById("conflict-local").textContent = count(Ledger.state) + " 笔";
+    document.getElementById("conflict-overlay").classList.add("open");
+  },
+
+  /** 用云端那份：本地这次的改动就此作废（面板上已经写明了） */
+  takeRemote() {
+    const base = this._remote || { version: 2, events: [], records: [], tags: {}, settings: {} };
+    Ledger.state = Ledger.migrate(base);
+    // 直接写内存而不走 Store.write：走它会触发一次 push，而那次 push 推上去的
+    // 内容跟云端一模一样（state 刚被设成 remote），纯属白跑一趟、版本号白涨一格。
+    // 数据不会因此出错——这一点是变异测试验过的，别把它写成安全问题。
+    Store._memory = Ledger.state;
+    Cloud.resume();
+    this.closeConflict();
+    UI.renderTags();
+    UI.renderNameList();
+    UI.renderEventOptions();
+    UI.render();
+  },
+
+  /** 用我这边：拿冲突响应里带回来的新版本号，正大光明地覆盖 */
+  keepMine() {
+    Cloud.resume();
+    this.closeConflict();
+    Cloud.push();
+  },
+
+  closeConflict() {
+    document.getElementById("conflict-overlay").classList.remove("open");
+    this._remote = null;
+  },
+
   show(state, detail) {
     const el = document.getElementById("cloud-status");
     clearTimeout(this._hide);
+
+    // 冲突面板自己会说话，状态条让位
+    if (state === "idle") {
+      el.hidden = true;
+      return;
+    }
+
     el.dataset.state = state;
     el.hidden = false;
 

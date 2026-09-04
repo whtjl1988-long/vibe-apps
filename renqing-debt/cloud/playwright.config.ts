@@ -6,6 +6,9 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
+  // 串行。账本测试共用同一个本地 KV，而账本现在有乐观锁——并行跑的用例
+  // 会互相撞版本号，红得毫无信息量。慢一点换确定性。
+  workers: 1,
   use: { baseURL: "http://127.0.0.1:8787" },
   webServer: [
     {

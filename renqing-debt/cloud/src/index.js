@@ -77,21 +77,39 @@ export default {
 /**
  * 整份账本读写。Worker 不解释账本的内容——它只认「是不是一份看起来像账本的 JSON」，
  * 剩下的归软件。这样将来软件改数据结构，这一层不用跟着动。
+ *
+ * 并发控制走标准的 HTTP 乐观锁：GET 带回 `ETag`（版本号），PUT 必须带
+ * `If-Match` 说明「我这份是基于第几版改的」。对不上就 409，并把云端那份
+ * 一起返回，让前端去问人要怎么办——**绝不自动合并**。
+ *
+ * 版本号存在 KV 的 metadata 里，账本本体仍是一份纯 JSON，这一层不碰它。
+ *
+ * ⚠️ 诚实说明限制：KV 没有原子的 compare-and-swap，两个请求可能同时读到
+ * 同一个版本号、都判定为「一致」。这个竞态窗口是毫秒级的，而本护栏要挡的是
+ * 「开了几小时的旧标签页」——那种场景版本号完全够用。真要消灭毫秒级竞态
+ * 得上 Durable Objects，对一本一年几十条的账是过度设计。
  */
 async function ledgerApi(request, env, user) {
   if (!env.LEDGER) return json({ error: "没有配置账本存储" }, 501);
   const key = ledgerKey(user);
 
   if (request.method === "GET") {
-    const raw = await env.LEDGER.get(key);
-    // 还没有账本 ≠ 出错：204 让前端干净地走「空账本起步」
-    if (raw === null) return new Response(null, { status: 204 });
-    return new Response(raw, { headers: { "Content-Type": "application/json; charset=utf-8" } });
+    const { value, metadata } = await env.LEDGER.getWithMetadata(key);
+    // 还没有账本 ≠ 出错：204 + rev 0 让前端干净地走「空账本起步」
+    if (value === null) return new Response(null, { status: 204, headers: { ETag: etag(0) } });
+    return new Response(value, {
+      headers: { "Content-Type": "application/json; charset=utf-8", ETag: etag(revOf(metadata)) },
+    });
   }
 
   if (request.method === "PUT") {
+    const base = parseIfMatch(request.headers.get("If-Match"));
+    // 不带 If-Match 一律拒绝：那等于「我不管现在是第几版，覆盖就是了」，
+    // 而那正是这道护栏要挡的事
+    if (base === null) return json({ error: "PUT 必须带 If-Match" }, 428);
+
     const text = await request.text();
-    // 只做形状校验，不看内容：挡住空 body 和明显不是账本的东西，
+    // 形状校验，不看内容：挡住空 body 和明显不是账本的东西，
     // 免得一次网络抽风把整本账覆盖成 "undefined"
     try {
       const parsed = JSON.parse(text);
@@ -99,11 +117,36 @@ async function ledgerApi(request, env, user) {
     } catch {
       return json({ error: "这不像一份账本" }, 400);
     }
-    await env.LEDGER.put(key, text);
-    return json({ ok: true });
+
+    const { value: current, metadata } = await env.LEDGER.getWithMetadata(key);
+    const currentRev = current === null ? 0 : revOf(metadata);
+
+    if (base !== currentRev) {
+      // 冲突。把云端那份原样带回去，前端拿它去问人：用哪边？
+      return new Response(current === null ? "null" : current, {
+        status: 409,
+        headers: { "Content-Type": "application/json; charset=utf-8", ETag: etag(currentRev) },
+      });
+    }
+
+    const next = currentRev + 1;
+    await env.LEDGER.put(key, text, { metadata: { rev: next } });
+    return new Response(JSON.stringify({ ok: true, rev: next }), {
+      headers: { "Content-Type": "application/json; charset=utf-8", ETag: etag(next) },
+    });
   }
 
   return json({ error: "不支持的方法" }, 405);
+}
+
+const etag = (rev) => `"${rev}"`;
+const revOf = (metadata) => (Number.isInteger(metadata?.rev) ? metadata.rev : 0);
+
+/** 只认确切的版本号。`*` 和多值形式一律当作没给——这道门不留模糊地带。 */
+function parseIfMatch(header) {
+  if (!header) return null;
+  const m = /^"(\d+)"$/.exec(header.trim());
+  return m ? Number(m[1]) : null;
 }
 
 const json = (body, status = 200) =>

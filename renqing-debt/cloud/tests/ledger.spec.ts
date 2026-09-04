@@ -17,11 +17,22 @@ const ledger = (records: unknown[]) => ({ version: 2, events: [], records, tags:
  */
 async function withEmptyLedger(browser: Browser) {
   const ctx = await authed(browser);
-  await ctx.request.put(APP + "/api/ledger", {
-    headers: { "Content-Type": "application/json" },
-    data: ledger([]),
-  });
+  await putLedger(ctx.request, ledger([]));
   return ctx;
+}
+
+/** 当前版本号。PUT 必须带 If-Match，所以每次写之前先问一句现在是第几版。 */
+export async function currentRev(request: any): Promise<string> {
+  const res = await request.get(APP + "/api/ledger");
+  return res.headers()["etag"] || '"0"';
+}
+
+/** 带 If-Match 的写入。裸 PUT 会被 428 挡下——那正是护栏要的。 */
+export async function putLedger(request: any, data: unknown, rev?: string) {
+  return request.put(APP + "/api/ledger", {
+    headers: { "Content-Type": "application/json", "If-Match": rev ?? (await currentRev(request)) },
+    data,
+  });
 }
 
 /* ---------- 接口层 ---------- */
@@ -39,8 +50,13 @@ test("还没有账本时返回 204，不是错误", async ({ request }) => {
 
 test("存进去能读回来，一个字节不差", async ({ request }) => {
   const body = ledger([{ id: "r1", name: "二舅", amount: 200, dir: "in" }]);
+  const cur = await request.get(APP + "/api/ledger", { headers: { Authorization: basic() } });
   const put = await request.put(APP + "/api/ledger", {
-    headers: { Authorization: basic(), "Content-Type": "application/json" },
+    headers: {
+      Authorization: basic(),
+      "Content-Type": "application/json",
+      "If-Match": cur.headers()["etag"] || '"0"',
+    },
     data: body,
   });
   expect(put.status()).toBe(200);
@@ -52,10 +68,12 @@ test("存进去能读回来，一个字节不差", async ({ request }) => {
 
 // 挡住空 body 和明显不是账本的东西：一次网络抽风不该把整本账覆盖成 "undefined"
 test("不像账本的东西存不进去", async ({ request }) => {
+  const cur = await request.get(APP + "/api/ledger", { headers: { Authorization: basic() } });
+  const rev = cur.headers()["etag"] || '"0"';
   for (const junk of ["", "undefined", "null", '{"nope":1}', "[]"]) {
     const res = await request.fetch(APP + "/api/ledger", {
       method: "PUT",
-      headers: { Authorization: basic(), "Content-Type": "application/json" },
+      headers: { Authorization: basic(), "Content-Type": "application/json", "If-Match": rev },
       data: junk,
     });
     expect(res.status(), `PUT ${JSON.stringify(junk)} 应被拒`).toBe(400);
