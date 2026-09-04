@@ -362,6 +362,26 @@
   #person-overlay .p-rating { font-size: 14px; letter-spacing: -0.224px; color: var(--ink-48); margin-bottom: 12px; }
   #person-name .grade { vertical-align: middle; margin-left: 8px; }
 
+  /* 评级说明：摆在关系人表底部。不讲清算法的话，AAA / CCC 就成了凭空给人定性——
+     这软件可以荒诞，但不能让人看不懂它凭什么这么说。 */
+  .rating-legend {
+    margin-top: 24px; background: var(--pearl); border: 1px solid var(--divider-soft);
+    border-radius: var(--r-lg); padding: 20px 24px;
+    font-size: 12px; letter-spacing: -0.12px; line-height: 1.7; color: var(--ink-48);
+  }
+  .rating-legend h3 {
+    font-family: var(--font-display); font-size: 17px; font-weight: 600;
+    letter-spacing: -0.374px; color: var(--ink); margin: 0 0 6px;
+  }
+  .rating-legend p { margin: 0; }
+  .rating-legend ul { margin: 10px 0 0; padding-left: 18px; }
+  .rating-legend li { margin-top: 5px; }
+  .rating-legend b { color: var(--ink-80); font-weight: 600; }
+  .rating-legend .tiers { margin-top: 14px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .rating-legend .tiers > span { display: inline-flex; align-items: center; gap: 6px; }
+  .rating-legend .tiers .grade { background: var(--canvas); }
+  .rating-legend .disclaim { margin-top: 14px; }
+
   /* 关系人钻取 */
   .person-link {
     background: none; border: none; padding: 0; font: inherit; letter-spacing: inherit;
@@ -764,6 +784,26 @@
     </div>
     <div class="empty" id="people-empty">还没有关系人。清白。</div>
     <div class="pager" id="people-pager"></div>
+
+    <div class="rating-legend">
+      <h3>评级是怎么算出来的</h3>
+      <p>每人起评 <b>70 分</b>，按账面加减，落进五档。只看往来记录，不看别的。</p>
+      <ul>
+        <li><b>他欠着你</b>（送出 − 收到 &gt; 0）：每 <b>¥1,000 扣 8 分</b>，最多扣 30</li>
+        <li><b>而且久无动静</b>（有欠着的，且距上次往来超过一年）：<b>每年再扣 10 分</b>，最多扣 35</li>
+        <li><b>你欠着他</b>（净额为正）：<b>加 5 分</b></li>
+        <li><b>往来够密</b>：4 笔以上 <b>加 10 分</b>；2–3 笔 <b>加 4 分</b></li>
+        <li><b>有来有往</b>（收和送都发生过）：<b>加 8 分</b></li>
+      </ul>
+      <p class="tiers">
+        <span><span class="grade g-AAA">AAA</span> ≥ 85</span>
+        <span><span class="grade g-AA">AA</span> ≥ 72</span>
+        <span><span class="grade g-A">A</span> ≥ 60</span>
+        <span><span class="grade g-BBB">BBB</span> ≥ 45</span>
+        <span><span class="grade g-CCC">CCC</span> 更低</span>
+      </p>
+      <p class="disclaim">本评级由本系统自行发明，只描述账面往来，不构成对任何人的评价。</p>
+    </div>
   </section>
 
   </div>
@@ -880,7 +920,7 @@
   <footer>
     本软件基于开源项目 <a href="https://github.com/jingguanzhang/gift-book" target="_blank" rel="noopener">jingguanzhang/gift-book</a>（电子礼簿系统，1284★）改造，
     复用其金额大写算法、重名检测与导出逻辑；人情往来模型与荒诞层为本项目新写。<br>
-    「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品 · <span id="app-version">v1.0.0</span>。数据只在你自己的浏览器里，不上传任何服务器。
+    「不会编码，硬要编码」—— <a href="https://vibe-all.com" target="_blank" rel="noopener">vibe everyting</a> 出品 · <span id="app-version"></span>。数据只在你自己的浏览器里，不上传任何服务器。
   </footer>
 </div>
 
@@ -1058,6 +1098,12 @@ const Mode = {
     return location.protocol === "file:" ? "local" : "demo";
   },
 };
+// 软件内**唯一**的版本号：页脚与导出 JSON 都从这里取。
+// 从前页脚是硬编码的，`id="app-version"` 还是个没人用的悬空钩子——结果 1.0.0 → 1.1.1
+// 升了两回，页脚一直挂着 1.0.0，没人发现。站点 works.ts 的 version 才是全局真相，
+// 这里是它的副本，由 tools/apps/verify.sh 对账。
+const APP_VERSION = "1.2.0";
+
 const MODE = Mode.resolve();
 const IS_DEMO = MODE === "demo";
 const IS_CLOUD = MODE === "cloud";
@@ -1923,7 +1969,7 @@ const Exporter = {
   },
 
   json() {
-    const payload = { app: "renqing-debt", appVersion: "1.1.1", version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
+    const payload = { app: "renqing-debt", appVersion: APP_VERSION, version: 2, exportedAt: Utils.stamp(), events: Ledger.events(), records: Ledger.all(), tags: Ledger.state.tags, settings: Ledger.state.settings };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -3299,6 +3345,7 @@ const CloudBoot = {
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("app-version").textContent = "v" + APP_VERSION;
   if (IS_CLOUD && !(await CloudBoot.start())) return;
   UI.init();
   Share.init();
