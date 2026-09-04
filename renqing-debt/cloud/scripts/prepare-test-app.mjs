@@ -20,7 +20,8 @@ mkdirSync(app, { recursive: true });
 // 只测根部署的话，子路径下那条相对路径的坑就永远测不到。
 for (const dest of [app, join(app, "renqing")]) {
   mkdirSync(dest, { recursive: true });
-  for (const f of ["index.html", "logo-mushroom.webp", "static"]) {
+  // qr.png 也得拷：index.html 的分享浮层引用它，漏了粉丝那边二维码是碎的
+  for (const f of ["index.html", "logo-mushroom.webp", "static", "qr.png"]) {
     const from = join(src, f);
     if (!existsSync(from)) {
       console.error(`缺少 ${from}`);

@@ -16,7 +16,7 @@
 
 - 一个 Cloudflare 账号（免费版够用）
 - Node.js 18+
-- 五分钟
+- 十分钟
 
 免费额度：KV 每天 10 万次读 / 1000 次写、存储 1 GB，Workers 每天 10 万次请求。一个人记一辈子人情账都碰不到。
 
@@ -28,16 +28,18 @@
 git clone https://github.com/whtjl1988-long/vibe-apps.git
 cd vibe-apps/renqing-debt/cloud
 npm install
+npx playwright install chromium   # 想跑测试才需要
+npx wrangler login                # 授权 wrangler 访问你的 Cloudflare
 ```
 
 ### 2. 把要跑的页面放进 public/
 
 ```bash
-cp ../index.html ../logo-mushroom.webp public/
+cp ../index.html ../logo-mushroom.webp ../qr.png public/
 cp -R ../static public/
 ```
 
-`public/` 里原本那个占位页可以删掉。
+`qr.png` 别漏——分享浮层引用它，少了那张二维码是碎的。这几条会覆盖掉 `public/` 里原来的占位页，那正是我们要的。
 
 ### 3. 配置
 
@@ -55,9 +57,19 @@ cp wrangler.example.toml wrangler.toml
 npx wrangler kv namespace create LEDGER
 ```
 
-它会打印一段配置，把其中的 `id` 填进 `wrangler.toml` 的 `[[kv_namespaces]]`。
+它会打印一段 `[[kv_namespaces]]` 配置，把里面的 `id` 填到 `wrangler.toml` 对应的位置（模板里已经留好了那一段，binding 必须是 `LEDGER`——Worker 只认这个名字）。
 
-### 5. 设凭据
+### 5. 先部署一次
+
+```bash
+npx wrangler deploy
+```
+
+**顺序是有讲究的**：secret 要设到一个已经存在的 Worker 上，所以先部署。
+
+这时凭据还没配，Worker 会**拒绝所有人**（包括你）——这是故意的，先部署再设密码就没有任何暴露窗口。
+
+### 6. 设凭据
 
 三条命令，**交互式输入，值不落任何文件、也不进命令历史**：
 
@@ -69,13 +81,7 @@ openssl rand -base64 32 | npx wrangler secret put SESSION_SECRET
 
 `SESSION_SECRET` 是会话票的签名密钥，让它在你机器上生成、直接进 Cloudflare。不配也能跑，只是退回「每次都输密码」——**门不会因此敞开**。
 
-### 6. 部署
-
-```bash
-npx wrangler deploy
-```
-
-打开它给你的 `*.workers.dev` 地址，应该弹出登录框。
+设完打开 `*.workers.dev` 地址，应该弹出登录框。
 
 ### 7.（可选）绑自己的域名
 
@@ -88,23 +94,49 @@ routes = [{ pattern = "ledger.example.com", custom_domain = true }]
 
 再 `npx wrangler deploy`。`workers_dev = false` 会关掉那个可枚举的 `*.workers.dev` 入口，只留你自己的域名。
 
-## 验证你部署对了
+## 验证
+
+这两件事是分开的，别混：
+
+### 代码有没有走样 —— `npm test`
 
 ```bash
 npm test
 ```
 
-Playwright 会起本地实例跑全套 e2e（登录墙、会话票、账本读写、冲突护栏、历史版本、子路径部署）。**全绿才算部署方式没走样。**
+Playwright 起本地实例跑全套 e2e（登录墙、会话票、账本读写、冲突护栏、历史版本、子路径部署）。
 
-线上则可以手动确认这几条：
+**它验的是代码，不是你的部署。** 测试用的是仓库自带的几份测试配置，**从不读你的 `wrangler.toml`**——你删掉 `run_worker_first`、忘了设 secret、KV 没绑上，`npm test` 照样全绿。改过 `src/` 之后跑它，别拿它当上线检查。
+
+### 你的部署对不对 —— 打线上
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://你的地址/            # 401
-curl -s -o /dev/null -w '%{http_code}\n' https://你的地址/index.html  # 401，静态资源也得被拦
-curl -s -o /dev/null -w '%{http_code}\n' -u '用户名:密码' https://你的地址/  # 200
+HOST=https://你的地址
+
+curl -s -o /dev/null -w '%{http_code}\n' "$HOST/"            # 期望 401
+curl -s -o /dev/null -w '%{http_code}\n' "$HOST/index.html"  # 期望 401 ← 最要紧的一条
+curl -s -o /dev/null -w '%{http_code}\n' -u '你的用户名' "$HOST/"  # 输密码，期望 200
 ```
 
-第二条尤其要看：它 200 就说明 `run_worker_first` 没生效，登录墙被绕过了。
+`-u '用户名'` 不带密码，curl 会提示你输入——**别把密码写进命令行**，那会进 shell 历史。
+
+**第二条最要紧**：它要是 200，说明 `run_worker_first` 没生效，静态资源绕过了登录墙——首页看起来完全正常，你不会察觉。
+
+账本这一层再确认三条（都要先输密码）：
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -u '你的用户名' "$HOST/api/ledger"
+# 200（已有账本）或 204（还没记过）；501 说明 KV 没绑上
+
+curl -s -o /dev/null -w '%{http_code}\n' -u '你的用户名' -X PUT \
+  -H 'Content-Type: application/json' --data '{}' "$HOST/api/ledger"
+# 期望 428：不说明「基于第几版」的写入一律拒绝，这是冲突护栏的门
+
+curl -s -o /dev/null -w '%{http_code}\n' -u '你的用户名' "$HOST/api/ledger/history"
+# 期望 200：历史版本读得到
+```
+
+最踏实的验证还是手上这台机器：**记一笔，换台设备打开，看看在不在。**
 
 ## 怎么踢下线（重要，别搞错）
 
@@ -127,9 +159,12 @@ npx wrangler deploy
 
 | 怎么打开 | 形态 | 数据在哪 |
 |---|---|---|
-| 双击本地文件（`file://`） | 自托管态 | 这台机器的浏览器里，断网也能用 |
-| 作品墙上的试玩页 | 试玩态 | 只在内存里，刷新即还原 |
-| 部署到这套 Worker 后面 | 云端 | 你自己的 KV |
+| 双击本地文件（`file://`） | **自托管态** | 这台机器的浏览器里，断网也能用 |
+| 作品墙上的试玩页 | **试玩态** | 只在内存里，刷新即还原 |
+| 部署到这套 Worker 后面 | **自托管态**（云端版） | 你自己的 KV |
+
+三种跑法，两种形态——因为「你自己部署的那一份」按词表仍属自托管态。
+**私有云态**专指作者自己长期在用的那一份实例，它不进这个仓库的分发范围。
 
 形态由**托管方式**决定：Worker 会给页面注入一个标记（连同账本接口的地址），软件据此切换。公开分发的那一份没有这个标记，所以行为不变——不需要第二份代码，也不需要改任何配置。
 

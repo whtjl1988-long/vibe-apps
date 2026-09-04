@@ -14,6 +14,13 @@ binding = "ASSETS"
 # 也就是**绕过登录墙**。打开它，每个请求才都先过 authenticate()。
 run_worker_first = true
 
+# 账本存储。binding 必须叫 LEDGER——Worker 只认这个名字（src/index.js 读 env.LEDGER）。
+# id 由 `npx wrangler kv namespace create LEDGER` 打印出来，把它填进来。
+# 不配也能部署，只是账本存不了，接口会明说 501 而不是假装成功。
+[[kv_namespaces]]
+binding = "LEDGER"
+id = "PASTE-THE-ID-HERE"
+
 # 凭据不写在配置里，用 secret（存在 Cloudflare，不落任何文件）：
 #   npx wrangler secret put AUTH_USER
 #   npx wrangler secret put AUTH_PASSWORD
