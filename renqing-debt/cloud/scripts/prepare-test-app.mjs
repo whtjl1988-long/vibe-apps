@@ -30,4 +30,8 @@ for (const dest of [app, join(app, "renqing")]) {
     cpSync(from, join(dest, f), { recursive: true });
   }
 }
-console.log("test-app 已就绪（根部署 + /renqing/ 子路径部署）");
+// 登录页与告别页属于「部署者自备」的那一类，测试实例也得有，
+// 否则会落到 Worker 的内置兜底表单上，测的就不是真实形态了。
+cpSync(join(here, "..", "tests", "fixtures", "login.html"), join(app, "login.html"));
+
+console.log("test-app 已就绪（根部署 + /renqing/ 子路径部署 + 登录页）");

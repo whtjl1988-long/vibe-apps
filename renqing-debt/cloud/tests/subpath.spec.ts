@@ -4,8 +4,13 @@ const USER = "test-user";
 const PASS = "测试:密码-123";
 const APP = "http://127.0.0.1:8789";
 
+// 显式带 Basic 头 = 命令行那条路的真实形态。
+// 不用 httpCredentials：它要等 401 挑战才发凭据，而挑战头（WWW-Authenticate）
+// 正是浏览器弹原生框的原因，已经去掉了。
+const basic = () => "Basic " + Buffer.from(`${USER}:${PASS}`, "utf8").toString("base64");
+
 const authed = (browser: Browser) =>
-  browser.newContext({ httpCredentials: { username: USER, password: PASS }, baseURL: APP });
+  browser.newContext({ extraHTTPHeaders: { Authorization: basic() }, baseURL: APP });
 
 /**
  * 等 UI 真的可以操作了。

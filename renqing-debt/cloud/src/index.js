@@ -36,6 +36,7 @@ const SESSION_RENEW_WITHIN = 30 * 24 * 3600;
 // 账本接口。整份 JSON 存一个 key——这本账一年几十条，整份重写在这个量级
 // 没有性能问题，不值得为它上 D1。
 const LEDGER_PATH = "/api/ledger";
+const LOGIN_PATH = "/login";
 const HISTORY_PATH = "/api/ledger/history";
 
 // key 带用户前缀。今天前缀是定值，将来多用户天然分隔——**新用户**不需要迁移；
@@ -75,13 +76,16 @@ const inlineJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
     // 退出登录不需要先登录：它只做「清掉凭证」这一件事
-    if (new URL(request.url).pathname === "/logout") return logout(request, env);
+    if (url.pathname === "/logout") return logout(request, env);
+    if (url.pathname === LOGIN_PATH) return login(request, env);
 
     const session = await authenticate(request, env);
-    if (!session) return unauthorized();
+    if (!session) return unauthorized(request);
 
-    const path = new URL(request.url).pathname;
+    const path = url.pathname;
     if (path === HISTORY_PATH || path.startsWith(HISTORY_PATH + "/")) {
       return withCookie(await historyApi(request, env, session.user), session, request);
     }
@@ -310,13 +314,107 @@ async function authenticate(request, env) {
 }
 
 /**
- * 子资源不发新票，免得登录后一页十几张各种一次。
- * 认不出来的（curl、老浏览器、测试）按导航算——宁可多发一次，也别让人拿不到票。
+ * 这是「浏览器在打开一个页面」吗？
+ *
+ * 两处用它：决定要不要发新票（子资源不必各发一次），以及未认证时是把人
+ * 领到登录页还是回一个干巴巴的 401。
+ *
+ * 认不出来的（curl、脚本、老浏览器）**按非导航算**。默认值反过来的话，
+ * 脚本会被 302 到一张 HTML 登录页上——它们要的是状态码。真正的浏览器
+ * 导航都会带 Sec-Fetch-Dest（Chrome 76+/Safari 16.4+/Firefox 90+），
+ * 代价只是很老的浏览器看到 401 文本而不是登录页。
  */
 function isNavigation(request) {
-  const dest = request.headers.get("Sec-Fetch-Dest");
-  return !dest || dest === "document";
+  return request.headers.get("Sec-Fetch-Dest") === "document";
 }
+
+/* ---------- 登录页 ---------- */
+
+/**
+ * GET  /login  出登录页
+ * POST /login  验密码，对了就发会话票并送回原处
+ *
+ * 页面同样可由部署者自备（public/login.html），没放就用内置的极简表单——
+ * 视觉属于各家的外壳，不该写死在所有人都会拿到的代码里。
+ */
+async function login(request, env) {
+  const url = new URL(request.url);
+  const next = safeNext(url.searchParams.get("next"));
+
+  if (request.method === "GET") {
+    // 已经有票的人不用再登一次
+    if (await userFromSession(request, env)) {
+      return new Response(null, { status: 302, headers: { Location: next, "Cache-Control": "no-store" } });
+    }
+    return loginPage(request, env, { failed: url.searchParams.has("failed"), next });
+  }
+
+  if (request.method !== "POST") return new Response("不支持的方法\n", { status: 405 });
+
+  const form = await request.formData().catch(() => null);
+  const user = String(form?.get("user") ?? "");
+  const pass = String(form?.get("password") ?? "");
+  const to = safeNext(String(form?.get("next") ?? "") || next);
+
+  const ok = await checkCredentials(user, pass, env);
+  if (!ok) {
+    // 密码错了别声张细节，也别停在 POST 上——回到登录页，带个标记
+    const back = new URL(LOGIN_PATH, url);
+    back.searchParams.set("failed", "1");
+    if (to !== "/") back.searchParams.set("next", to);
+    return new Response(null, {
+      status: 303,
+      headers: { Location: back.pathname + back.search, "Cache-Control": "no-store" },
+    });
+  }
+
+  const headers = new Headers({ Location: to, "Cache-Control": "no-store" });
+  if (env.SESSION_SECRET) {
+    headers.append("Set-Cookie", await mintSession(USER_ID, env.SESSION_SECRET));
+  }
+  return new Response(null, { status: 303, headers });
+}
+
+/** 只认站内路径，杜绝 ?next=//evil.com 这类开放重定向 */
+function safeNext(raw) {
+  const v = String(raw || "");
+  return v.startsWith("/") && !v.startsWith("//") ? v : "/";
+}
+
+async function loginPage(request, env, { failed, next }) {
+  const headers = { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" };
+
+  if (env.ASSETS) {
+    const page = await env.ASSETS.fetch(new URL("/login.html", request.url));
+    if (page.ok) {
+      // 用 HTMLRewriter 把状态填进部署者自己的页面，不去猜它的结构
+      const filled = new HTMLRewriter()
+        .on('input[name="next"]', { element: (el) => el.setAttribute("value", next) })
+        .on("[data-login-error]", {
+          element(el) {
+            if (!failed) el.remove();
+          },
+        })
+        .transform(page);
+      return new Response(filled.body, { status: failed ? 401 : 200, headers });
+    }
+  }
+
+  // 内置兜底：不好看，但能用
+  const err = failed ? '<p style="color:#c00">用户名或密码不对</p>' : "";
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+      `<title>登录</title><form method="post" action="${LOGIN_PATH}">${err}` +
+      `<input type="hidden" name="next" value="${escapeAttr(next)}">` +
+      `<p><label>用户名 <input name="user" autocomplete="username" autofocus></label></p>` +
+      `<p><label>密码 <input name="password" type="password" autocomplete="current-password"></label></p>` +
+      `<p><button type="submit">进去</button></p></form>`,
+    { status: failed ? 401 : 200, headers },
+  );
+}
+
+const escapeAttr = (v) =>
+  String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 /* ---------- 路径一：会话 cookie ---------- */
 
@@ -390,13 +488,21 @@ async function userFromBasicAuth(request, env) {
   const sep = decoded.indexOf(":");
   if (sep < 0) return null;
 
+  return (await checkCredentials(decoded.slice(0, sep), decoded.slice(sep + 1), env)) ? USER_ID : null;
+}
+
+/**
+ * 比对一对凭据。登录表单和 Basic Auth 共用这一处判定——
+ * 两条入口、同一道门，别让它们有机会长出不同的脾气。
+ */
+async function checkCredentials(user, pass, env) {
+  if (!env.AUTH_USER || !env.AUTH_PASSWORD) return false;
   // 两边都算完再判，不短路：短路会让「用户名错」和「密码错」的耗时可区分
   const [okUser, okPass] = await Promise.all([
-    digestEqual(decoded.slice(0, sep), env.AUTH_USER),
-    digestEqual(decoded.slice(sep + 1), env.AUTH_PASSWORD),
+    digestEqual(user, env.AUTH_USER),
+    digestEqual(pass, env.AUTH_PASSWORD),
   ]);
-
-  return okUser && okPass ? USER_ID : null;
+  return okUser && okPass;
 }
 
 /* ---------- 编码与比较 ---------- */
@@ -449,15 +555,43 @@ async function sha256(text) {
 
 /* ---------- 响应 ---------- */
 
-/** 401：只说「要登录」，不透露里面有什么 */
-function unauthorized() {
+/**
+ * 没通过认证时怎么打发。
+ *
+ * **不发 `WWW-Authenticate`**——那个头正是浏览器弹原生登录框的原因。
+ * 去掉它，浏览器就不弹了，我们才能把人领到自己的登录页。
+ *
+ * 于是分两种对待：
+ *   - 浏览器来要页面 → 302 到登录页，带上 `next` 好让人登完回到原处
+ *   - 其余（curl、脚本、fetch）→ 干巴巴的 401，不带挑战头
+ *
+ * Basic Auth 那条路仍然收（见 userFromBasicAuth），命令行照样能 `curl -u` 进来，
+ * 只是不再由 401 去「邀请」浏览器弹框。
+ */
+function unauthorized(request) {
+  const url = new URL(request.url);
+
+  // 接口永远给状态码，不重定向——脚本、fetch、冒烟检查要的是 401，
+  // 不是一张 HTML 登录页。isNavigation() 对不带 Sec-Fetch-Dest 的请求
+  // 按导航算（为了兼容老浏览器和 curl），所以这里必须先把 /api/ 摘出来。
+  const isApi = url.pathname === LEDGER_PATH || url.pathname.startsWith(LEDGER_PATH + "/");
+
+  if (!isApi && isNavigation(request)) {
+    const next = url.pathname + url.search;
+    const to = new URL(LOGIN_PATH, url);
+    // 只带站内路径，杜绝被拿去做开放重定向
+    if (next && next !== "/" && next.startsWith("/") && !next.startsWith("//")) {
+      to.searchParams.set("next", next);
+    }
+    return new Response(null, {
+      status: 302,
+      headers: { Location: to.pathname + to.search, "Cache-Control": "no-store" },
+    });
+  }
+
   return new Response("401 Unauthorized\n", {
     status: 401,
-    headers: {
-      "WWW-Authenticate": `Basic realm="${REALM}", charset="UTF-8"`,
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
   });
 }
 

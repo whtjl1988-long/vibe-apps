@@ -12,6 +12,15 @@ const DAY = 24 * 3600;
 const NO_SESSION = "http://127.0.0.1:8788";
 
 const basic = () => "Basic " + Buffer.from(`${USER}:${PASS}`, "utf8").toString("base64");
+
+/**
+ * 模拟「浏览器在打开一个页面」。
+ *
+ * 会话票只在导航请求上发（子资源不必各发一次），而 Worker 认导航靠的是
+ * Sec-Fetch-Dest——真实浏览器导航一定带它，Playwright 的 request 不带。
+ * 不显式加上的话，这里测的就不是「浏览器登录后拿到票」那件事。
+ */
+const nav = () => ({ Authorization: basic(), "Sec-Fetch-Dest": "document" });
 const now = () => Math.floor(Date.now() / 1000);
 
 /**
@@ -41,7 +50,7 @@ function setCookies(res: APIResponse): string[] {
 const sessionCookies = (res: APIResponse) => setCookies(res).filter((c) => c.startsWith(`${COOKIE}=`));
 
 async function login(request: any): Promise<string> {
-  const res = await request.get("/", { headers: { Authorization: basic() } });
+  const res = await request.get("/", { headers: nav() });
   expect(res.status()).toBe(200);
   const raw = sessionCookies(res)[0];
   expect(raw, "Basic 登录成功后应当种下会话 cookie").toBeTruthy();
@@ -51,7 +60,7 @@ async function login(request: any): Promise<string> {
 /* ---------- 发票 ---------- */
 
 test("Basic 登录成功后种下会话 cookie，属性齐全", async ({ request }) => {
-  const res = await request.get("/", { headers: { Authorization: basic() } });
+  const res = await request.get("/", { headers: nav() });
   expect(res.status()).toBe(200);
 
   const raw = sessionCookies(res)[0];
@@ -65,7 +74,7 @@ test("Basic 登录成功后种下会话 cookie，属性齐全", async ({ request
 });
 
 test("有效期至少 90 天", async ({ request }) => {
-  const res = await request.get("/", { headers: { Authorization: basic() } });
+  const res = await request.get("/", { headers: nav() });
   const maxAge = Number(sessionCookies(res)[0].match(/Max-Age=(\d+)/)![1]);
   // 使用场景是一年几次的红白事，短有效期等于没做
   expect(maxAge).toBeGreaterThanOrEqual(90 * DAY);
@@ -103,21 +112,24 @@ test("有效期还长的时候不续期", async ({ request }) => {
 
 test("快到期时自动续一张，不用等被弹框", async ({ request }) => {
   const soon = mint({ u: "me", exp: now() + 10 * DAY });
-  const res = await request.get("/", { headers: { Cookie: `${COOKIE}=${soon}` } });
+  const res = await request.get("/", {
+    headers: { Cookie: `${COOKIE}=${soon}`, "Sec-Fetch-Dest": "document" },
+  });
   expect(res.status()).toBe(200);
   expect(sessionCookies(res), "剩不到 30 天就该续，否则 120 天是道硬悬崖").toHaveLength(1);
 });
 
 /* ---------- 伪造与过期 ---------- */
 
-test("cookie 被篡改：回落到 401 弹框，不是报错页", async ({ request }) => {
+test("cookie 被篡改：干脆地 401，不是报错页，也不再弹原生框", async ({ request }) => {
   const value = await login(request);
   const [body, sig] = value.split(".");
   const tampered = `${body}.${sig.slice(0, -1)}${sig.slice(-1) === "A" ? "B" : "A"}`;
 
   const res = await request.get("/", { headers: { Cookie: `${COOKIE}=${tampered}` } });
   expect(res.status()).toBe(401);
-  expect(res.headers()["www-authenticate"]).toContain("Basic");
+  // 不带 WWW-Authenticate——那个头正是浏览器弹原生登录框的原因
+  expect(res.headers()["www-authenticate"]).toBeUndefined();
 });
 
 test("payload 被改（想冒充别人）也过不去", async ({ request }) => {
@@ -128,11 +140,20 @@ test("payload 被改（想冒充别人）也过不去", async ({ request }) => {
   expect(res.status()).toBe(401);
 });
 
-test("过期 cookie：回落到 401 弹框", async ({ request }) => {
+test("过期 cookie：干脆地 401；浏览器则被领去登录页", async ({ request }) => {
   const expired = mint({ u: "me", exp: now() - 60 });
+
   const res = await request.get("/", { headers: { Cookie: `${COOKIE}=${expired}` } });
   expect(res.status()).toBe(401);
-  expect(res.headers()["www-authenticate"]).toContain("Basic");
+  expect(res.headers()["www-authenticate"]).toBeUndefined();
+
+  // 同一张过期票，浏览器打开页面时该被领到登录页而不是看到 401
+  const nav = await request.get("/", {
+    headers: { Cookie: `${COOKIE}=${expired}`, "Sec-Fetch-Dest": "document" },
+    maxRedirects: 0,
+  });
+  expect(nav.status()).toBe(302);
+  expect(nav.headers()["location"]).toContain("/login");
 });
 
 // JSON.parse('{"exp":1e400}') 得到的是 Infinity，而 `Infinity <= now` 为 false——
@@ -189,7 +210,7 @@ test("没配签名密钥时：不种 cookie，但门照样关着", async ({ requ
   const anon = await request.get(NO_SESSION + "/");
   expect(anon.status()).toBe(401);
 
-  const authed = await request.get(NO_SESSION + "/", { headers: { Authorization: basic() } });
+  const authed = await request.get(NO_SESSION + "/", { headers: nav() });
   expect(authed.status()).toBe(200);
   expect(sessionCookies(authed)).toHaveLength(0);
 });
@@ -200,7 +221,7 @@ test("没配签名密钥时：不种 cookie，但门照样关着", async ({ requ
 // `__Host-` 前缀要求 Secure，本地又跑在 http 上——这条走真实浏览器，
 // 顺带验的正是本票的目的：第二次打开时不再需要密码。
 test("真实浏览器：登录一次之后，新开的上下文不用再输密码", async ({ browser }) => {
-  const first = await browser.newContext({ httpCredentials: { username: USER, password: PASS } });
+  const first = await browser.newContext({ extraHTTPHeaders: { Authorization: basic() } });
   const p1 = await first.newPage();
   await p1.goto("/");
   const state = await first.storageState();

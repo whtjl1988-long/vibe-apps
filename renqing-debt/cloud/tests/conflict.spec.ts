@@ -6,7 +6,7 @@ const APP = "http://127.0.0.1:8789";
 
 const basic = () => "Basic " + Buffer.from(`${USER}:${PASS}`, "utf8").toString("base64");
 const authed = (browser: Browser) =>
-  browser.newContext({ httpCredentials: { username: USER, password: PASS }, baseURL: APP });
+  browser.newContext({ extraHTTPHeaders: { Authorization: basic() }, baseURL: APP });
 const ledger = (records: unknown[]) => ({ version: 2, events: [], records, tags: {}, settings: {} });
 
 async function rev(request: any): Promise<string> {

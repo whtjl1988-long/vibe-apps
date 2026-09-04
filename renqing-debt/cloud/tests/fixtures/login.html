@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>登录（测试固定页）</title></head>
+<body>
+<!--
+  登录页的测试装置。真实部署里这一页由部署者自己提供（自留地那份在
+  vibe-private/public/login.html），这里只保留 Worker 会往里填东西的那几个钩子：
+  input[name=next]、[data-login-error]，以及表单本身。
+-->
+<h1>只有我进得来</h1>
+<p data-login-error>用户名或密码不对。再试一次。</p>
+<form method="post" action="/login">
+  <input type="hidden" name="next" value="/">
+  <label for="user">用户名</label>
+  <input id="user" name="user" type="text" autocomplete="username" required autofocus>
+  <label for="password">密码</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+  <button type="submit">进去</button>
+</form>
+</body>
+</html>

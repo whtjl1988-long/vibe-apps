@@ -7,6 +7,10 @@ import path from "node:path";
 const USER = "test-user";
 const PASS = "测试:密码-123";
 
+// 显式带 Basic 头 = 命令行那条路的真实形态。不用 httpCredentials：
+// 它要等 401 挑战才发凭据，而挑战头正是浏览器弹原生框的原因，已经去掉了。
+const basic = () => "Basic " + Buffer.from(`${USER}:${PASS}`, "utf8").toString("base64");
+
 test("没凭据进不来：401，且页面内容不可见", async ({ request }) => {
   const res = await request.get("/");
   expect(res.status()).toBe(401);
@@ -14,14 +18,17 @@ test("没凭据进不来：401，且页面内容不可见", async ({ request }) 
   expect(await res.text()).not.toContain("登录墙已经立起来了");
 });
 
-test("401 带 WWW-Authenticate，浏览器才会弹登录框", async ({ request }) => {
+// 反过来了：以前靠这个头让浏览器弹框，现在恰恰要它消失——
+// 有它浏览器就抢先弹原生框，我们自己的登录页根本没机会出现。
+test("401 不带 WWW-Authenticate，浏览器才不会抢先弹原生框", async ({ request }) => {
   const res = await request.get("/");
-  expect(res.headers()["www-authenticate"]).toContain("Basic");
+  expect(res.status()).toBe(401);
+  expect(res.headers()["www-authenticate"]).toBeUndefined();
 });
 
 test("凭据错了也进不来", async ({ browser }) => {
   const ctx = await browser.newContext({
-    httpCredentials: { username: USER, password: "wrong-password" },
+    extraHTTPHeaders: { Authorization: "Basic " + Buffer.from(`${USER}:wrong-password`, "utf8").toString("base64") },
   });
   const res = await ctx.request.get("/");
   expect(res.status()).toBe(401);
@@ -34,7 +41,7 @@ test("凭据错了也进不来", async ({ browser }) => {
 // 密码里那个冒号顺带钉住「按第一个冒号切」而不是按最后一个或 split(":")。
 test("中文密码 + 密码里带冒号，都能正确进门", async ({ browser }) => {
   const ctx = await browser.newContext({
-    httpCredentials: { username: USER, password: PASS },
+    extraHTTPHeaders: { Authorization: basic() },
   });
   const res = await ctx.request.get("/");
   expect(res.status()).toBe(200);
@@ -42,7 +49,7 @@ test("中文密码 + 密码里带冒号，都能正确进门", async ({ browser 
 });
 
 test("凭据对了进得去，页面看得见", async ({ browser }) => {
-  const ctx = await browser.newContext({ httpCredentials: { username: USER, password: PASS } });
+  const ctx = await browser.newContext({ extraHTTPHeaders: { Authorization: basic() } });
   const page = await ctx.newPage();
   const res = await page.goto("/");
   expect(res?.status()).toBe(200);
@@ -51,7 +58,7 @@ test("凭据对了进得去，页面看得见", async ({ browser }) => {
 });
 
 test("门后的内容标为 private，不让中间层缓存", async ({ browser }) => {
-  const ctx = await browser.newContext({ httpCredentials: { username: USER, password: PASS } });
+  const ctx = await browser.newContext({ extraHTTPHeaders: { Authorization: basic() } });
   const res = await ctx.request.get("/");
   expect(res.headers()["cache-control"]).toContain("private");
   await ctx.close();

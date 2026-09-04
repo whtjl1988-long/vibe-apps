@@ -7,6 +7,7 @@
 跑起来之后你会得到：
 
 - 一道登录墙，路人连里面有什么都看不出来
+- 一张自己的登录页（想做多少设计是你的事），而不是浏览器那个丑弹框
 - 一张 120 天的会话票，手机上不必每次手输密码
 - 账本存云端，手机记的电脑上就有
 - 两台设备撞车时**停下来问你**，绝不自动合并
@@ -31,6 +32,13 @@ npm install
 npx playwright install chromium   # 想跑测试才需要
 npx wrangler login                # 授权 wrangler 访问你的 Cloudflare
 ```
+
+你还可以在 `public/` 放两张自己的页面，Worker 会自动用它们；不放就回退到内置的极简版：
+
+| 文件 | 什么时候出现 | 需要保留的钩子 |
+|---|---|---|
+| `login.html` | 未登录访问页面时 | `<form method="post" action="/login">`、`input[name=user]`、`input[name=password]`、`input[name=next]`（Worker 会填）、`[data-login-error]`（密码错时保留，否则被删掉） |
+| `logged-out.html` | 访问 `/logout` 之后 | 无 |
 
 ### 2. 把要跑的页面放进 public/
 
@@ -113,7 +121,7 @@ Playwright 起本地实例跑全套 e2e（登录墙、会话票、账本读写�
 ```bash
 HOST=https://你的地址
 
-curl -s -o /dev/null -w '%{http_code}\n' "$HOST/"            # 期望 401
+curl -s -o /dev/null -w '%{http_code}\n' "$HOST/"            # 期望 401（脚本走这条）
 curl -s -o /dev/null -w '%{http_code}\n' "$HOST/index.html"  # 期望 401 ← 最要紧的一条
 curl -s -o /dev/null -w '%{http_code}\n' -u '你的用户名' "$HOST/"  # 输密码，期望 200
 ```
@@ -121,6 +129,15 @@ curl -s -o /dev/null -w '%{http_code}\n' -u '你的用户名' "$HOST/"  # 输密
 `-u '用户名'` 不带密码，curl 会提示你输入——**别把密码写进命令行**，那会进 shell 历史。
 
 **第二条最要紧**：它要是 200，说明 `run_worker_first` 没生效，静态资源绕过了登录墙——首页看起来完全正常，你不会察觉。
+
+浏览器那条路单独确认一下：
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' -H 'Sec-Fetch-Dest: document' "$HOST/"
+# 期望 302，跳到 /login——浏览器该被领到登录页，而不是弹原生框
+```
+
+**两条入口是并存的**：浏览器走登录页拿会话票，`curl -u` 这类脚本仍然直接带凭据进来。同一对凭据、同一道墙。
 
 账本这一层再确认三条（都要先输密码）：
 
