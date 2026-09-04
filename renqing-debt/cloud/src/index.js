@@ -76,7 +76,7 @@ const inlineJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
 export default {
   async fetch(request, env) {
     // 退出登录不需要先登录：它只做「清掉凭证」这一件事
-    if (new URL(request.url).pathname === "/logout") return logout();
+    if (new URL(request.url).pathname === "/logout") return logout(request, env);
 
     const session = await authenticate(request, env);
     if (!session) return unauthorized();
@@ -473,7 +473,21 @@ function unauthorized() {
  * 返回 200 而不是 401：401 会带出浏览器的登录弹框，而浏览器很可能还缓存着
  * Basic 凭据，于是静默重发 → 立刻又拿到一张新票，退出等于没退。
  */
-function logout() {
+async function logout(request, env) {
+  const cleared = `${COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax`;
+
+  // 部署者可以在 public/ 放一张自己的告别页（logged-out.html），
+  // 想做多少仪式感是他自己的事——这一层只负责把票收走。没放就用下面的纯文本。
+  if (env.ASSETS) {
+    const page = await env.ASSETS.fetch(new URL("/logged-out.html", request.url));
+    if (page.ok) {
+      const headers = new Headers(page.headers);
+      headers.set("Set-Cookie", cleared);
+      headers.set("Cache-Control", "no-store");
+      return new Response(page.body, { status: 200, headers });
+    }
+  }
+
   return new Response(
     "已退出登录（这台设备的会话已清除）。\n\n" +
       "浏览器可能还记着 Basic Auth 的用户名密码，重新打开本站会直接进来；要彻底退出，关掉浏览器。\n" +
@@ -481,7 +495,7 @@ function logout() {
     {
       status: 200,
       headers: {
-        "Set-Cookie": `${COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax`,
+        "Set-Cookie": cleared,
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
       },
