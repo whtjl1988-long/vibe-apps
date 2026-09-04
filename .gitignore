@@ -1,1 +1,4 @@
 test-results/
+
+# iCloud 同步 ~/Documents 时会生成「xxx 2.ts」这类副本，别让它们进仓库
+* [0-9].*
