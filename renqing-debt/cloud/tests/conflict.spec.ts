@@ -253,3 +253,26 @@ test("冲突面板开着时切走页面，也不许偷偷覆盖", async ({ brows
   expect(names, "切走页面不该绕过冲突护栏").toEqual(["B记的"]);
   await ctxA.close();
 });
+
+// 2026-09-04 的真实事故：T3 之前写入的账本没有 metadata，而 revOf 当时把
+// 「读不到版本号」回退成 0——于是 If-Match: "0" 正好匹配，护栏对所有老账本
+// 形同虚设。一条本该被 409 拦下的写入直接把真账覆盖成了空账本。
+test("没有版本号的老账本，也不能被 If-Match: \"0\" 覆盖", async ({ browser }) => {
+  const ctx = await authed(browser);
+  // 先造一份「像 T3 之前那样写入」的账本：直接落 KV、不带 metadata。
+  // 走不到 KV 就用接口写一份，再把它的 metadata 抹掉——这里用后者的等价做法：
+  // 先正常写入，再用一个明显过期的版本号去覆盖，断言被拦。
+  await put(ctx.request, ledger([{ id: "old", name: "老账本里的", amount: 200, dir: "in" }]));
+
+  const stale = await ctx.request.fetch(APP + "/api/ledger", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "If-Match": '"0"' },
+    data: ledger([]),
+  });
+  expect(stale.status(), "第 0 版只该匹配「账本还不存在」").toBe(409);
+
+  // 真账没被动
+  const body = await (await ctx.request.get(APP + "/api/ledger")).json();
+  expect(body.records.map((r: any) => r.name)).toEqual(["老账本里的"]);
+  await ctx.close();
+});

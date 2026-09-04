@@ -136,7 +136,7 @@ async function ledgerApi(request, env, user) {
 
   if (request.method === "GET") {
     const { value, metadata } = await env.LEDGER.getWithMetadata(key);
-    // 还没有账本 ≠ 出错：204 + rev 0 让前端干净地走「空账本起步」
+    // 还没有账本 ≠ 出错：204 + 第 0 版，让前端干净地走「空账本起步」
     if (value === null) return new Response(null, { status: 204, headers: { ETag: etag(0) } });
     return new Response(value, {
       headers: { "Content-Type": "application/json; charset=utf-8", ETag: etag(revOf(metadata)) },
@@ -229,7 +229,19 @@ async function pruneHistory(env, user) {
 }
 
 const etag = (rev) => `"${rev}"`;
-const revOf = (metadata) => (Number.isInteger(metadata?.rev) ? metadata.rev : 0);
+
+/**
+ * 账本不存在时是第 0 版，「已经存在但没有版本号」则算第 1 版。
+ *
+ * 这两件事必须分开。T3 之前写入的账本没有 metadata（那时是 `put(key, text)`），
+ * 如果把它们也当成第 0 版，`If-Match: "0"` 就会匹配上——护栏对所有老账本
+ * 形同虚设。2026-09-04 就是这么把一份真账覆盖成空的（靠 T4 的归档捞了回来）。
+ *
+ * 算作第 1 版之后，老账本的正常读写照旧：GET 拿到 `"1"`，写回去时补上
+ * metadata，此后走正常的递增。
+ */
+const REV_UNVERSIONED = 1;
+const revOf = (metadata) => (Number.isInteger(metadata?.rev) ? metadata.rev : REV_UNVERSIONED);
 
 /** 只认确切的版本号。`*` 和多值形式一律当作没给——这道门不留模糊地带。 */
 function parseIfMatch(header) {
